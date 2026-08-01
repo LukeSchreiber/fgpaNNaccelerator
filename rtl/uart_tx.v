@@ -1,9 +1,9 @@
 `timescale 1ns / 1ps
 //=============================================================================
-// uart_tx.v -- 8N1 UART transmitter, 115200 baud from a 100 MHz clock
+// uart_tx.v -- 8N1 UART transmitter, rate set by DIVISOR from a 100 MHz clock
 //
-// DIVISOR = 100e6 / 115200 = 868.06 -> 868 cycles per bit, the same rate
-// uart_rx expects. The transmitter needs no half-bit offset: it defines the
+// DIVISOR must match uart_rx. The deployed rate is 921600 baud -> 109 cycles
+// per bit; the default below is the 115200 value uart_loopback_top uses. The transmitter needs no half-bit offset: it defines the
 // bit boundaries rather than hunting for them, so a single DIVISOR counter
 // paces the whole frame.
 //

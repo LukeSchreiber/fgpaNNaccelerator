@@ -40,14 +40,20 @@
 // image. Dropping is the safe failure: a torn image would be scored and the
 // wrong answer reported as if it were real.
 //
-// There is no timeout. A short stream leaves the loader waiting for the
-// missing bytes and img_ready simply never rises; the next stream continues
-// filling from where the last one stopped. Recovery is a reset.
+// IDLE WATCHDOG
+// -------------
+// A truncated stream is discarded after IDLE_TIMEOUT clocks with no byte.
+// Without it the loader waits forever for bytes that never arrive, and the
+// NEXT image silently completes the abandoned one -- the buffer ends up
+// holding the tail of one picture and the head of another, and the board
+// classifies the splice without complaint. Recovery used to be BTNU: a
+// hardware reset for a software protocol error.
 //=============================================================================
 
 module img_loader #(
-    parameter integer N         = 16,    // bytes per packed word == MAC lanes
-    parameter integer IMG_BYTES = 784    // must be a multiple of N
+    parameter integer N            = 16,   // bytes per packed word == MAC lanes
+    parameter integer IMG_BYTES    = 784,  // must be a multiple of N
+    parameter integer IDLE_TIMEOUT = 5_000_000  // 50 ms at 100 MHz
 )(
     input  wire                             clk,
     input  wire                             rst,        // synchronous, active high
@@ -73,10 +79,13 @@ module img_loader #(
     (* ram_style = "block" *)
     reg [N*8-1:0] mem [0:DEPTH-1];
 
+    localparam integer TW = $clog2(IDLE_TIMEOUT);  // idle counter width
+
     reg [N*8-1:0] shift;      // staging register for the word being assembled
     reg [LW-1:0]  lane;       // which byte of the current word arrives next
     reg [AW-1:0]  wr_addr;
     reg [CW-1:0]  byte_cnt;   // bytes of this image received so far
+    reg [TW-1:0]  idle_cnt;   // clocks since the last accepted byte
 
     // A byte is taken only while the buffer is free.
     wire accept   = rx_valid && !img_ready;
@@ -84,6 +93,10 @@ module img_loader #(
     wire img_end  = (byte_cnt == IMG_BYTES - 1);
 
     wire [N*8-1:0] word_next = {rx_data, shift[N*8-1:8]};
+
+    // A stream is "in progress" between the first byte and the 784th.
+    wire partial = (byte_cnt != {CW{1'b0}});
+    wire timeout = partial && (idle_cnt == IDLE_TIMEOUT - 1);
 
     //-----------------------------------------------------------------
     // write port -- one full word every N accepted bytes
@@ -102,6 +115,29 @@ module img_loader #(
     end
 
     //-----------------------------------------------------------------
+    // idle watchdog
+    //
+    // A truncated stream -- host killed mid-send, cable pulled, a dropped
+    // byte -- otherwise leaves the loader waiting forever for bytes that will
+    // never come, and the NEXT image silently completes the abandoned one:
+    // 784 bytes arrive, the buffer holds the tail of one image and the head of
+    // another, and the board classifies the splice without complaint.
+    //
+    // Recovering from that used to mean pressing BTNU, a hardware reset for a
+    // software protocol error. The counter restarts on every accepted byte and
+    // only runs while a stream is part-finished, so an idle link costs nothing.
+    //
+    // 50 ms is ~4,600 inter-byte times at 921600 baud and ~575 at 115200, so a
+    // host that stutters mid-transfer is never mistaken for one that gave up.
+    //-----------------------------------------------------------------
+    always @(posedge clk) begin
+        if (rst)               idle_cnt <= {TW{1'b0}};
+        else if (accept)       idle_cnt <= {TW{1'b0}};   // a byte landed
+        else if (!partial)     idle_cnt <= {TW{1'b0}};   // nothing in flight
+        else if (!timeout)     idle_cnt <= idle_cnt + 1'b1;
+    end
+
+    //-----------------------------------------------------------------
     // stream sequencing
     //-----------------------------------------------------------------
     always @(posedge clk) begin
@@ -114,6 +150,14 @@ module img_loader #(
         end else begin
             if (img_ack)
                 img_ready <= 1'b0;
+
+            if (timeout && !accept) begin
+                // Discard the partial image. img_ready is untouched: a
+                // completed image waiting for the core is not affected.
+                byte_cnt <= {CW{1'b0}};
+                wr_addr  <= {AW{1'b0}};
+                lane     <= {LW{1'b0}};
+            end
 
             if (accept) begin
                 shift <= word_next;

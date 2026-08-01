@@ -19,8 +19,10 @@
 
 module tb_uart_rx;
 
-    localparam integer DIVISOR  = 868;
-    localparam integer HALF_DIV = 434;
+    // The divisors nn_accel_top actually deploys: 100 MHz / 921600 baud.
+    // 109/2 = 54.5 rounds to 54, so this also covers the half-bit rounding.
+    localparam integer DIVISOR  = 109;
+    localparam integer HALF_DIV = 54;
 
     localparam [7:0] TEST_BYTE = 8'h53;
 

@@ -50,7 +50,7 @@ RAW_LABELS = [i for i in range(26) if i not in (9, 25)]
 IDX_TO_LETTER = [chr(ord("A") + raw) for raw in RAW_LABELS]
 
 DEFAULT_PORT = "/dev/ttyUSB1"   # Digilent boards enumerate JTAG first, UART second
-BAUD = 115200
+BAUD = 921600   # matches BAUD_DIV=109 in nn_accel_top.v
 
 
 def read_hex_lines(path):
@@ -95,7 +95,7 @@ def classify(port, image, timeout):
                 f"no reply within {timeout}s.\n"
                 f"  - is the board programmed with nn_accel_top?\n"
                 f"  - is {port} the UART and not the JTAG interface?\n"
-                f"  - the loader keeps partial images: press BTNU to reset it"
+                f"  - a truncated stream is discarded after 50 ms; just retry"
             )
 
         # The board sends exactly one byte per image. Extra bytes mean it ran
@@ -113,7 +113,7 @@ def main():
                     help="which demo image to send (default 0)")
     ap.add_argument("--port", default=DEFAULT_PORT,
                     help=f"serial device (default {DEFAULT_PORT})")
-    # 784 bytes at 115200 8N1 is 68 ms and the inference is 65 us, so anything
+    # 784 bytes at 921600 8N1 is 8.5 ms and the inference is 65 us, so anything
     # past a second means the board is not answering at all.
     ap.add_argument("--timeout", type=float, default=5.0,
                     help="seconds to wait for the result byte (default 5)")

@@ -46,6 +46,10 @@ module tb_img_loader;
     localparam integer CHUNKS    = IMG_BYTES / N;    // 49 words per image
     localparam integer N_IMAGES  = 16;
 
+    // Short enough to simulate. send_byte leaves 3 idle clocks between bytes,
+    // so this must be comfortably larger or a normal stream would trip it.
+    localparam integer TB_TIMEOUT = 1000;
+
     reg                clk = 0;
     reg                rst = 1;
     reg  [7:0]         rx_data = 8'd0;
@@ -63,7 +67,7 @@ module tb_img_loader;
     reg [7:0]      px     [0:N_IMAGES*IMG_BYTES-1];
     reg [N*8-1:0]  golden [0:N_IMAGES*CHUNKS-1];
 
-    img_loader #(.N(N), .IMG_BYTES(IMG_BYTES)) dut (
+    img_loader #(.N(N), .IMG_BYTES(IMG_BYTES), .IDLE_TIMEOUT(TB_TIMEOUT)) dut (
         .clk(clk), .rst(rst),
         .rx_data(rx_data), .rx_valid(rx_valid),
         .img_ready(img_ready), .img_ack(img_ack),
@@ -228,6 +232,42 @@ module tb_img_loader;
         $display("--- image 1: stream %0d bytes ---", IMG_BYTES);
         stream_image(1);
         check_image(1);
+
+        //---- watchdog: a truncated stream must not poison the next image ---
+        // Without the timeout these 100 bytes stay in the buffer and the next
+        // 784 finish the abandoned image, so image 0 would land 100 bytes
+        // rotated and every check below would fail.
+        $display("");
+        $display("--- watchdog: abandon a stream after %0d bytes ---", 100);
+
+        // image 1 is still sitting in the buffer marked ready; release it or
+        // every byte below would be dropped by the backpressure rule.
+        img_ack = 1'b1; @(posedge clk); #1; img_ack = 1'b0;
+
+        for (k = 0; k < 100; k = k + 1)
+            send_byte(px[k]);
+
+        if (img_ready !== 1'b0) begin
+            $display("FAIL: img_ready rose on a partial stream");
+            errors = errors + 1;
+        end
+
+        // idle past the timeout
+        repeat (TB_TIMEOUT + 20) @(posedge clk);
+        #1;
+
+        if (img_ready !== 1'b0) begin
+            $display("FAIL: watchdog asserted img_ready on a discarded stream");
+            errors = errors + 1;
+        end else begin
+            $display("pass: partial stream discarded, img_ready still low");
+        end
+
+        // a full image now must land cleanly at word 0
+        stream_image(0);
+        check_image(0);
+
+        img_ack = 1'b1; @(posedge clk); #1; img_ack = 1'b0;
 
         //---- summary ----------------------------------------------------
         $display("");

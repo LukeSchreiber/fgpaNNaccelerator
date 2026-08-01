@@ -28,7 +28,7 @@ endif
 RTL       := rtl/nn_accel_core.v rtl/rom_sync.v rtl/mac_array.v rtl/mac_unit.v \
              rtl/requantize.v rtl/argmax.v
 TESTS     := tb_core tb_img_loader tb_mac_array tb_mac_unit tb_datapath \
-             tb_uart_rx tb_uart_tx
+             tb_uart_rx tb_uart_tx tb_top_uart
 
 # sources per testbench
 SRC_tb_core        := tb/tb_core.v $(RTL)
@@ -38,6 +38,10 @@ SRC_tb_mac_unit    := tb/tb_mac_unit.v rtl/mac_unit.v
 SRC_tb_datapath    := tb/tb_datapath.v rtl/requantize.v rtl/argmax.v
 SRC_tb_uart_rx     := tb/tb_uart_rx.v rtl/uart_rx.v
 SRC_tb_uart_tx     := tb/tb_uart_tx.v rtl/uart_tx.v
+SRC_tb_top_uart    := tb/tb_top_uart.v rtl/nn_accel_top.v rtl/nn_accel_core.v \
+                      rtl/img_loader.v rtl/uart_rx.v rtl/uart_tx.v \
+                      rtl/seven_seg.v rtl/rom_sync.v rtl/mac_array.v \
+                      rtl/mac_unit.v rtl/requantize.v rtl/argmax.v
 
 .PHONY: test $(TESTS) clean lint mem
 

@@ -21,8 +21,8 @@
 //   host sends 784 bytes  ->  img_loader fills its BRAM, raises img_ready
 //   img_ready             ->  one-cycle start pulse into the core, img_ack
 //                             back to the loader so it will take the next image
-//   core runs ~6,478 cycles (65 us, far shorter than the 68 ms the transfer
-//                             itself takes at 115200 baud)
+//   core runs 6,480 cycles (64.8 us, far shorter than the 8.5 ms the transfer
+//                             itself takes at 921600 baud)
 //   done rises            ->  one byte out on RsTx, 7-seg updates
 //
 // The button start has been replaced by img_ready: an image arriving IS the
@@ -35,9 +35,9 @@
 // The image-select switches are gone: there is exactly one image in the
 // buffer, so there is nothing to select.
 //
-// BAUD vs LATENCY: 784 bytes at 115200 8N1 is ~68 ms, three orders of
-// magnitude longer than the inference. The link, not the accelerator, sets the
-// frame rate, which is why no attempt is made to overlap load and compute.
+// BAUD vs LATENCY: 784 bytes at 921600 8N1 is 8.5 ms, still 130x longer than
+// the inference. The link, not the accelerator, sets the frame rate, which is
+// why no attempt is made to overlap load and compute.
 //=============================================================================
 
 module nn_accel_top #(
@@ -79,9 +79,20 @@ module nn_accel_top #(
     localparam integer IMG_AW     = $clog2(IMG_CHUNKS);      //  6 bits, one image
     localparam integer CORE_AW    = $clog2(N_IMAGES * IMG_CHUNKS);   // 10 bits
 
-    // 100 MHz / 115200 baud. HALF_DIV centres the first sample in the start bit.
-    localparam integer BAUD_DIV  = 868;
-    localparam integer BAUD_HALF = 434;
+    // 100 MHz / 921600 baud = 108.5 -> 109 clocks per bit (917,431 baud,
+    // -0.45% error). An 8N1 frame is resampled from the start bit, so the error
+    // only accumulates over 9.5 bit times: 4.3% of a bit at the stop bit, well
+    // inside the ~50% margin before a sample lands in the wrong bit.
+    //
+    // HALF_DIV centres the first sample in the start bit: 109/2 = 54.5 -> 54.
+    // The half-bit rounding is absorbed the same way, since every later sample
+    // is timed from that point rather than from the frame start.
+    //
+    // 921600 is the fastest standard rate the Basys 3's FT2232H handles
+    // cleanly. 784 bytes: 68.1 ms -> 8.5 ms, so the link goes from 14.7 to 117
+    // images/sec while the inference stays 64.8 us.
+    localparam integer BAUD_DIV  = 109;
+    localparam integer BAUD_HALF = 54;
 
     //---------------------------------------------------------------
     // buttons: synchronize and debounce
@@ -103,16 +114,29 @@ module nn_accel_top #(
 
     wire rst = btnU_sync[1];
 
+    // These MUST be reset. Without it btnC_stable powers up unknown in
+    // simulation, `btnC_sync[1] != btnC_stable` is X, `if (X)` takes the else
+    // branch, and btnC_stable is never assigned -- so it stays X forever. The X
+    // reaches start_core through rerun_pulse and sticks there (x && x = x), and
+    // the core can never start. On Xilinx parts every flop configures to 0, so
+    // the board works anyway; the cost is that any top-level simulation is dead
+    // on arrival, which is exactly where an integration bug would show up.
     reg [19:0] db_cnt;
     reg        btnC_stable, btnC_prev;
     always @(posedge clk) begin
-        if (btnC_sync[1] != btnC_stable) begin
-            db_cnt <= db_cnt + 1'b1;
-            if (&db_cnt) btnC_stable <= btnC_sync[1];
+        if (rst) begin
+            db_cnt      <= 20'd0;
+            btnC_stable <= 1'b0;
+            btnC_prev   <= 1'b0;
         end else begin
-            db_cnt <= 20'd0;
+            if (btnC_sync[1] != btnC_stable) begin
+                db_cnt <= db_cnt + 1'b1;
+                if (&db_cnt) btnC_stable <= btnC_sync[1];
+            end else begin
+                db_cnt <= 20'd0;
+            end
+            btnC_prev <= btnC_stable;
         end
-        btnC_prev <= btnC_stable;
     end
 
     wire rerun_pulse = btnC_stable & ~btnC_prev;   // one cycle on press

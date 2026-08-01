@@ -18,14 +18,14 @@ host ──784 bytes──> uart_rx ─> img_loader ─> nn_accel_core ─> argm
 |---|---|
 | Accuracy (INT8, 7,172 test images) | **92.40%** |
 | Latency | **6,480 cycles = 64.8 µs** @ 100 MHz |
-| Throughput | 15,432 inferences/sec (compute-bound), 14/sec over the UART |
+| Throughput | 15,432 inferences/sec (compute-bound), 117/sec over the UART |
 | Timing | **WNS +0.262 ns**, 0 failing endpoints of 6,162 |
 | DSPs | 16 / 90 (17.8%) — one per MAC lane |
 | Block RAM | 37 / 50 (74%) |
 | LUTs / FFs | 1,315 (6.3%) / 1,835 (4.4%) |
 
-The link, not the accelerator, sets the frame rate: 784 bytes at 115200 baud is
-68 ms, about a thousand times the inference itself.
+The link, not the accelerator, sets the frame rate: 784 bytes at 921600 baud is
+8.5 ms, still 130x the inference itself.
 
 ## The network
 
@@ -63,6 +63,11 @@ per layer, 2 cycles out of 6,480.
 The RTL is checked bit-exactly against an integer golden model in NumPy —
 class index, **winning logit, and cycle count** for all 16 demo images.
 
+`tb_top_uart.v` is the only test that exercises the baud divisors, which are
+localparams in `nn_accel_top` and therefore invisible to every module-level
+test — `uart_rx` passes its own tests at any divisor you hand it. It caught an
+X-propagation bug that made the core unstartable in simulation.
+
 Checking the class alone is not enough. Deleting one stage from the capture
 chain, so every neuron is read one cycle early before its last 16 terms land,
 changes the predicted class on exactly **one of 16 images and leaves the other
@@ -85,7 +90,8 @@ working directory. Building elsewhere? `make test MEM_DIR=/abs/path/to/mem`.
 | `tb_mac_array.v` | dot products, bias fusion, negative weights |
 | `tb_mac_unit.v` | pipeline latency, signedness |
 | `tb_datapath.v` | requantize saturation, argmax ties |
-| `tb_uart_rx.v` / `tb_uart_tx.v` | 8N1 framing at 115200 baud |
+| `tb_uart_rx.v` / `tb_uart_tx.v` | 8N1 framing at the deployed 921600 baud |
+| `tb_top_uart.v` | **the whole chain over the wire**: real UART frames into `RsRx`, decoded reply off `RsTx` |
 
 ## Running it
 
@@ -96,7 +102,7 @@ python python/predict.py 0 --port /dev/ttyUSB1
 ```
 
 ```
-image 0: sending 784 bytes to /dev/ttyUSB1 at 115200 baud (68 ms)
+image 0: sending 784 bytes to /dev/ttyUSB1 at 921600 baud (9 ms)
 
   hardware       6  G
   golden model   6  G
@@ -162,5 +168,5 @@ mem/     packed weights and demo images ($readmemh at configuration)
 bit/     implemented bitstream
 ```
 
-Pin constraints are in `rtl/basys3.xdc`. UART is 115200 8N1 on RsRx (B18) /
+Pin constraints are in `rtl/basys3.xdc`. UART is 921600 8N1 on RsRx (B18) /
 RsTx (A18).

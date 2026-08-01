@@ -16,7 +16,8 @@
 
 module tb_uart_tx;
 
-    localparam integer DIVISOR  = 868;
+    // The divisor nn_accel_top actually deploys: 100 MHz / 921600 baud.
+    localparam integer DIVISOR  = 109;
     localparam integer HALF_DIV = DIVISOR / 2;
 
     localparam [7:0] TEST_BYTE = 8'h53;

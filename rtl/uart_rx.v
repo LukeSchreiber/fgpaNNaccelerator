@@ -1,11 +1,13 @@
 `timescale 1ns / 1ps
 //=============================================================================
-// uart_rx.v -- 8N1 UART receiver, 115200 baud from a 100 MHz clock
+// uart_rx.v -- 8N1 UART receiver, rate set by DIVISOR from a 100 MHz clock
 //
-// DIVISOR = 100e6 / 115200 = 868.06 -> 868 cycles per bit (0.007% error, far
-// inside the ~5% budget an 8N1 frame allows). HALF_DIV = 434 places the first
-// sample in the middle of the start bit, after which sampling every DIVISOR
-// cycles stays centred through the whole frame.
+// The deployed configuration is 921600 baud: DIVISOR = 100e6 / 921600 = 108.5
+// -> 109 cycles per bit (-0.45% error, far inside the ~5% budget an 8N1 frame
+// allows). HALF_DIV = 54 places the first sample in the middle of the start
+// bit, after which sampling every DIVISOR cycles stays centred through the
+// whole frame. The parameter defaults below are the 115200 values, which
+// uart_loopback_top still uses; nn_accel_top overrides them.
 //
 // The rx pin is asynchronous to clk, so it passes through two flops before
 // anything looks at it. Only rx_sync is used by the FSM -- sampling the raw
