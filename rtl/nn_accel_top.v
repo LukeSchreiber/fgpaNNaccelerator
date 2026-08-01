@@ -40,7 +40,27 @@
 // frame rate, which is why no attempt is made to overlap load and compute.
 //=============================================================================
 
-module nn_accel_top (
+module nn_accel_top #(
+    // Weight and bias initialization files, as BARE FILENAMES.
+    //
+    // Vivado resolves a bare $readmemh filename against the files added to the
+    // project as design sources, so mem/*_packed.mem must be in sources_1 --
+    // see the "Building the bitstream" section of the README. That keeps one
+    // machine's absolute paths out of the repo.
+    //
+    // Override with a path to simulate this top level directly:
+    //   nn_accel_top #(.W1_FILE("mem/w1_packed.mem"), ...) dut (...);
+    //
+    // A single MEM_DIR prefix is deliberately NOT used. Concatenating an empty
+    // string parameter in Verilog yields a leading NUL byte, so {MEM_DIR,
+    // "w1.mem"} with an empty default produces a filename that fails to open
+    // and leaves the BRAMs full of zeros -- a board that runs and classifies
+    // everything as class 0, with no error anywhere.
+    parameter W1_FILE = "w1_packed.mem",
+    parameter W2_FILE = "w2_packed.mem",
+    parameter B1_FILE = "b1_packed.mem",
+    parameter B2_FILE = "b2_packed.mem"
+)(
     input  wire        clk,        // W5, 100 MHz
     input  wire        btnC,       // re-run the buffered image
     input  wire        btnU,       // reset
@@ -160,10 +180,10 @@ module nn_accel_top (
     nn_accel_core #(
         .N(N), .INPUTS(INPUTS), .HIDDEN(128), .NUM_CLASS(24),
         .ACC_WIDTH(32), .SHIFT1(10), .N_IMAGES(N_IMAGES), .EXT_IMG(1),
-        .W1_FILE ("/home/yetigod/fpga-nn-accel/mem/w1_packed.mem"),
-        .W2_FILE ("/home/yetigod/fpga-nn-accel/mem/w2_packed.mem"),
-        .B1_FILE ("/home/yetigod/fpga-nn-accel/mem/b1_packed.mem"),
-        .B2_FILE ("/home/yetigod/fpga-nn-accel/mem/b2_packed.mem")
+        .W1_FILE (W1_FILE),
+        .W2_FILE (W2_FILE),
+        .B1_FILE (B1_FILE),
+        .B2_FILE (B2_FILE)
     ) u_core (
         .clk(clk), .rst(rst), .start(start_core),
         .img_sel(4'd0),                 // one buffered image, so base is 0

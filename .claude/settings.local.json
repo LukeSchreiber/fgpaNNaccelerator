@@ -26,7 +26,27 @@
       "Bash(/tmp/claude-1000/-home-yetigod-fpga-nn-accel/915014fb-8a91-4067-ad34-8f9059c470e6/scratchpad/vvp.sh /tmp/claude-1000/-home-yetigod-fpga-nn-accel/915014fb-8a91-4067-ad34-8f9059c470e6/scratchpad/tb_ma.vvp)",
       "Bash(xargs -0 du -h)",
       "Bash(git --version)",
-      "Bash(gh --version)"
+      "Bash(gh --version)",
+      "Bash(git commit -q -m ' *)",
+      "Bash(git add *)",
+      "Bash(git branch *)",
+      "Bash(git remote *)",
+      "Bash(GIT_TERMINAL_PROMPT=0 timeout 60 git push -u origin main)",
+      "Bash(echo \"[exit $?]\")",
+      "Bash(curl -s localhost:5000/api/image/0)",
+      "Bash(git checkout *)",
+      "Bash(kill 145748)",
+      "Bash(curl -s -X POST localhost:5000/predict-test -H 'Content-Type: application/json' -d '{\"index\":3}')",
+      "Bash(curl -s -X POST localhost:5000/predict-upload -F \"file=@docs/sample_a.png\")",
+      "Bash(curl -s localhost:5000/ -o /tmp/claude-1000/-home-yetigod-fpga-nn-accel/915014fb-8a91-4067-ad34-8f9059c470e6/scratchpad/p3.html -w 'page: HTTP %{http_code}, %{size_download} bytes\\\\n')",
+      "Bash(node --check /tmp/claude-1000/-home-yetigod-fpga-nn-accel/915014fb-8a91-4067-ad34-8f9059c470e6/scratchpad/p3.js)",
+      "Bash(curl -s -X POST localhost:5000/predict-test -H 'Content-Type: application/json' -d '{\"index\":2}')",
+      "Bash(ps -eo pid,args)",
+      "Bash(awk '{print \"PID\",$1}')",
+      "Bash(node --check frontend/app.js)",
+      "Bash(curl -s localhost:5000/api/info)",
+      "Bash(curl -s -w \"\\\\n  [HTTP %{http_code}]\\\\n\" -X POST localhost:5000/predict-test -H 'Content-Type: application/json' -d '{\"index\":3}')",
+      "Bash(command -v vivado hw_server)"
     ]
   }
 }

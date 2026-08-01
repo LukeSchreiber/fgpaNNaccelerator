@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ASL Classifier · Basys 3 FPGA</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='13' font-size='13'>✋</text></svg>">
+</head>
+<body>
+
+<!-- ==================== sticky top nav ==================== -->
+<nav class="topnav">
+  <div class="nav-inner">
+    <div class="nav-brand">
+      <span class="brand-mark" aria-hidden="true">✋</span>
+      <span class="brand-name">ASL&nbsp;Classifier</span>
+    </div>
+    <div class="nav-tags">
+      <span class="nav-tag">Basys&nbsp;3</span>
+      <span class="nav-tag">Artix-7</span>
+      <span class="nav-tag">INT8&nbsp;MLP</span>
+    </div>
+    <div class="status" id="status">
+      <span class="dot" id="dot"></span>
+      <span id="statusText">connecting</span>
+    </div>
+  </div>
+</nav>
+
+<main>
+
+  <!-- ==================== telemetry stat cards ==================== -->
+  <section class="metric-row" aria-label="Hardware telemetry">
+    <div class="metric metric-hero">
+      <span class="metric-label">Latency</span>
+      <span class="metric-value">64.8<small>&thinsp;µs</small></span>
+      <span class="metric-unit">Hardware Execution</span>
+    </div>
+    <div class="metric">
+      <span class="metric-label">Model</span>
+      <span class="metric-value">INT8</span>
+      <span class="metric-unit">Quantized Weights</span>
+    </div>
+    <div class="metric">
+      <span class="metric-label">Input</span>
+      <span class="metric-value">28&nbsp;×&nbsp;28</span>
+      <span class="metric-unit">784 Byte Vector</span>
+    </div>
+    <div class="metric">
+      <span class="metric-label">Classes</span>
+      <span class="metric-value">24</span>
+      <span class="metric-unit">A–Y excl. Motion</span>
+    </div>
+  </section>
+
+  <!-- ==================== hero: 2-column workspace ==================== -->
+  <section class="hero-grid">
+
+    <!-- LEFT: FPGA inference engine -->
+    <div class="col-left">
+      <div class="card infer-card">
+        <div class="panel-head">
+          <span class="eyebrow">FPGA Inference Engine</span>
+          <span class="tally" id="tally"></span>
+        </div>
+
+        <div class="infer-grid">
+          <div class="stage">
+            <div class="stage-label">Selected Test Image</div>
+            <div class="frame frame-lg">
+              <canvas id="canvas" width="28" height="28"></canvas>
+            </div>
+            <p class="caption" id="caption">test image 0</p>
+          </div>
+
+          <div class="verdict">
+            <div class="stage-label">Prediction Output</div>
+            <div class="letter idle" id="letter">–</div>
+            <div class="chips" id="chips"><span class="chip">not classified</span></div>
+
+            <div class="latency" id="meter" hidden>
+              <div class="track">
+                <i class="seg-wire" id="barWire"></i><i class="seg-fpga" id="barFpga"></i>
+              </div>
+              <div class="legend">
+                <span class="k k-wire" id="keyWire">serial</span>
+                <span class="k k-fpga">FPGA 0.065 ms</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <button class="btn" id="go">
+          <span class="btn-spinner" aria-hidden="true"></span>
+          <span class="btn-label">Classify on FPGA</span>
+        </button>
+        <div class="err" id="err" hidden></div>
+      </div>
+    </div>
+
+    <!-- RIGHT: live input pipeline -->
+    <div class="col-right">
+      <div class="card">
+        <div class="panel-head">
+          <span class="eyebrow">Live Input Pipeline</span>
+        </div>
+
+        <div class="drop" id="drop" tabindex="0" role="button"
+             aria-label="Upload an image to classify">
+          <span class="drop-icon-ring" aria-hidden="true">
+            <svg class="drop-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5"/>
+              <path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/>
+            </svg>
+          </span>
+          <p><b>Drop an image</b> or click to browse</p>
+          <small>Grayscale → centre-crop → 28×28, exactly as the training set</small>
+        </div>
+        <input type="file" id="file" accept="image/*" hidden>
+
+        <div class="pipeline" id="shots" hidden>
+          <div class="compare">
+            <figure class="step">
+              <div class="frame frame-slot"><img id="orig" alt="the file you uploaded"></div>
+              <figcaption>Original Upload</figcaption>
+            </figure>
+            <figure class="step">
+              <div class="frame frame-slot"><img id="prep" alt="the 28×28 image the board received"></div>
+              <figcaption>Board Downsampled 28×28</figcaption>
+            </figure>
+          </div>
+          <div class="step-result">
+            <div class="letter idle" id="uLetter">–</div>
+            <div class="chips">
+              <span class="chip" id="uMatch" hidden>—</span>
+              <span class="chip" id="uClass">—</span>
+              <span class="chip" id="uLat">—</span>
+            </div>
+          </div>
+        </div>
+
+        <p class="note">
+          Expect poor results on ordinary photos. The training set is tightly
+          cropped, centred, evenly lit hands against a plain background — the 28×28
+          preview usually shows exactly why a prediction went wrong.
+        </p>
+        <div class="err" id="uErr" hidden></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== test dataset carousel tray ==================== -->
+  <section class="card tray-card">
+    <div class="panel-head">
+      <span class="eyebrow">Test Dataset Samples</span>
+      <span class="hint">from <code>images_packed.mem</code></span>
+    </div>
+    <div class="thumbs" id="thumbs"></div>
+  </section>
+
+  <!-- ==================== footer telemetry bar ==================== -->
+  <footer id="foot"></footer>
+</main>
+
+<script src="/app.js"></script>
+</body>
+</html>

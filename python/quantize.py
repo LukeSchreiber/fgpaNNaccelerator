@@ -5,7 +5,7 @@ PIPELINE THE HARDWARE WILL IMPLEMENT
 ------------------------------------
     raw pixel p (uint8, 0..255)
       -> acc1 = sum(qW1 * p) + qb1              (int32)
-      -> a1   = clip(acc1 >> SHIFT1, 0, 127)    (uint8, ReLU folded in)
+      -> a1   = clip(acc1 >> SHIFT1, 0, 255)    (uint8, ReLU folded in)
       -> acc2 = sum(qW2 * a1) + qb2             (int32)
       -> argmax(acc2)                           (class index)
 
@@ -39,9 +39,16 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-# Must match training. Printed by train_asl_v2.py.
-MEAN = 0.624671
-STD = 0.191253
+# Normalization constants. These are DERIVED from the training set in main(),
+# exactly as train_asl_v2.py derives them, rather than transcribed from its
+# output -- a stale copy here would silently mis-scale every quantized weight
+# and there is nothing downstream that would notice.
+#
+# The values below are only a tripwire: main() recomputes them and aborts if
+# they have moved, which means the data or the preprocessing changed and the
+# committed .mem files no longer correspond to this script.
+EXPECTED_MEAN = 0.624671
+EXPECTED_STD = 0.191253
 
 HIDDEN = 128
 W_BITS = 8                       # sweep this later: 4 / 8 / 16
@@ -75,11 +82,22 @@ def load_csv(path):
     return pixels, labels
 
 
-def fold_normalization(W1, b1):
-    """Collapse the /255 rescale and (x-MEAN)/STD into layer-1 parameters."""
-    W1f = W1 / (255.0 * STD)
-    b1f = b1 - (MEAN / STD) * W1.sum(axis=1)
+def fold_normalization(W1, b1, mean, std):
+    """Collapse the /255 rescale and (x-mean)/std into layer-1 parameters."""
+    W1f = W1 / (255.0 * std)
+    b1f = b1 - (mean / std) * W1.sum(axis=1)
     return W1f, b1f
+
+
+def normalization_stats(train_px):
+    """Mean/std over the training set, matching train_asl_v2.py exactly.
+
+    That script computes them on pixels scaled to 0..1, over the TRAINING set
+    only -- using test data here would leak. Same data, same arithmetic, so
+    these reproduce its printed values bit for bit.
+    """
+    scaled = train_px.astype(np.float64) / 255.0
+    return float(scaled.mean()), float(scaled.std())
 
 
 def symmetric_scale(x, bits):
@@ -148,7 +166,21 @@ def main():
     print(f"  W1 [{W1.min():+.4f}, {W1.max():+.4f}]   "
           f"b1 [{b1.min():+.4f}, {b1.max():+.4f}]")
 
-    W1f, b1f = fold_normalization(W1, b1)
+    # Derive the normalization from the data, then check it has not moved.
+    train_px, train_y = load_csv(TRAIN_CSV)
+    mean, std = normalization_stats(train_px)
+    print(f"normalization  MEAN={mean:.6f}  STD={std:.6f}  (derived from "
+          f"{len(train_px):,} training images)")
+
+    if (abs(mean - EXPECTED_MEAN) > 1e-6) or (abs(std - EXPECTED_STD) > 1e-6):
+        raise SystemExit(
+            f"normalization drifted: got MEAN={mean:.6f} STD={std:.6f}, "
+            f"expected {EXPECTED_MEAN} / {EXPECTED_STD}.\n"
+            f"The training data or its preprocessing changed, so the committed "
+            f".mem files no longer match this script. Retrain, then update "
+            f"EXPECTED_MEAN/EXPECTED_STD.")
+
+    W1f, b1f = fold_normalization(W1, b1, mean, std)
     print("post-fold ranges (scales MUST be computed from these):")
     print(f"  W1 [{W1f.min():+.6f}, {W1f.max():+.6f}]   "
           f"b1 [{b1f.min():+.4f}, {b1f.max():+.4f}]")
@@ -160,7 +192,6 @@ def main():
     qb1 = np.round(b1f / s_w1).astype(np.int32)
 
     # --- calibrate the layer-1 shift on training data -----------------------
-    train_px, train_y = load_csv(TRAIN_CSV)
     calib = train_px[:2000]
     acc1_calib = calib @ qW1.T + qb1
     shift1 = pick_shift(acc1_calib, 2 ** A_BITS - 1)
@@ -187,7 +218,7 @@ def main():
 
     with torch.no_grad():
         xf = torch.from_numpy(
-            ((test_px / 255.0 - MEAN) / STD).astype(np.float32))
+            ((test_px / 255.0 - mean) / std).astype(np.float32))
         fp32_pred = model(xf).argmax(dim=1).numpy()
     fp32_acc = (fp32_pred == test_y).mean()
 

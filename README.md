@@ -70,9 +70,13 @@ changes the predicted class on exactly **one of 16 images and leaves the other
 that matters in a pipelined design: not a crash, a quiet 4%-accuracy build.
 
 ```bash
-iverilog -o tb_core.vvp tb/tb_core.v rtl/nn_accel_core.v rtl/rom_sync.v \
-    rtl/mac_array.v rtl/mac_unit.v rtl/requantize.v rtl/argmax.v && vvp tb_core.vvp
+make test          # all 7 testbenches, pass/fail summary
+make tb_core       # just one
+make lint          # elaborate the Basys 3 top level
 ```
+
+Run from the repo root: the testbenches load `mem/*.mem` relative to the
+working directory. Building elsewhere? `make test MEM_DIR=/abs/path/to/mem`.
 
 | testbench | covers |
 |---|---|
@@ -106,10 +110,46 @@ match: hardware agrees with the golden model
 To rebuild the weights from scratch (needs the dataset CSVs, not in this repo):
 
 ```bash
-python python/train_asl.py     # PyTorch training
+python python/train_asl_v2.py  # PyTorch training (v2: 128 hidden, normalized)
 python python/quantize.py      # fold normalization, quantize to int8
 python python/pack_mem.py      # pack 16-wide for the BRAMs
 python python/golden_check.py  # export preds.mem + scores.mem for the testbench
+```
+
+## Building the bitstream
+
+The RTL loads its weights with `$readmemh` using **bare filenames**, so the
+`.mem` files must be design sources of the Vivado project — there are no
+absolute paths in the repo. In the Tcl console with `nn_accel.xpr` open:
+
+```tcl
+set repo [file normalize [get_property DIRECTORY [current_project]]/..]
+add_files -norecurse -fileset sources_1 [list \
+  $repo/mem/w1_packed.mem $repo/mem/w2_packed.mem \
+  $repo/mem/b1_packed.mem $repo/mem/b2_packed.mem]
+update_compile_order -fileset sources_1
+
+reset_run synth_1
+launch_runs impl_1 -to_step write_bitstream -jobs 8
+wait_on_run impl_1
+```
+
+Add them **referenced in place, not copied** — a copy inside the project
+directory becomes a second set of weights that silently goes stale the next
+time `pack_mem.py` runs.
+
+This step is not optional and it fails quietly: an unresolvable `$readmemh`
+filename leaves the BRAMs zero-initialized, and the board then runs happily and
+classifies everything as one class with no error anywhere. After programming,
+confirm with `python python/predict.py 0` — a zero-weight build cannot match
+the golden model.
+
+To simulate the top level directly, override the paths instead:
+
+```verilog
+nn_accel_top #(.W1_FILE("mem/w1_packed.mem"), .W2_FILE("mem/w2_packed.mem"),
+               .B1_FILE("mem/b1_packed.mem"), .B2_FILE("mem/b2_packed.mem"))
+    dut (...);
 ```
 
 ## Layout

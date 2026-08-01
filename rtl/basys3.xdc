@@ -12,6 +12,13 @@ create_clock -add -name sys_clk_pin -period 10.00 -waveform {0 5} [get_ports clk
 set_property -dict { PACKAGE_PIN U18 IOSTANDARD LVCMOS33 } [get_ports btnC]
 set_property -dict { PACKAGE_PIN T18 IOSTANDARD LVCMOS33 } [get_ports btnU]
 
+## Both buttons are asynchronous to sys_clk and are resynchronized in RTL
+## (two flops, plus a 2^20 debounce on btnC). There is no real setup/hold
+## relationship to the pad, so constraining one only produces noise in the
+## timing report.
+set_false_path -from [get_ports btnC]
+set_false_path -from [get_ports btnU]
+
 ## ---------------- LEDs ----------------
 set_property -dict { PACKAGE_PIN U16 IOSTANDARD LVCMOS33 } [get_ports {led[0]}]
 set_property -dict { PACKAGE_PIN E19 IOSTANDARD LVCMOS33 } [get_ports {led[1]}]

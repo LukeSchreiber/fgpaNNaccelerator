@@ -1,3 +1,9 @@
+"""SUPERSEDED -- digit MNIST, not the ASL model this project ships.
+
+Kept as the original bring-up script. The deployed network is trained by
+train_asl_v2.py on Sign Language MNIST (24 classes).
+"""
+
 """Stage 1: Train the float32 reference MLP (784 -> 64 -> 10)."""
 
 import torch

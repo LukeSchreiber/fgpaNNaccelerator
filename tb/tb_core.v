@@ -20,13 +20,20 @@
 // that notices a wrong DRAIN_CYCLES, since a pipeline that drains for too long
 // still produces the right answer, just later.
 //
-// MEM_DIR must be an absolute path. $readmemh resolves relative paths
-// against the simulator's run directory, not the project root.
+// Run from the repo root; see the MEM_DIR note below to build elsewhere.
 //=============================================================================
 
 module tb_core;
 
-    localparam MEM_DIR = "/home/yetigod/fpga-nn-accel/mem";
+    // $readmemh resolves relative paths against the SIMULATOR'S RUN DIRECTORY,
+    // not this file, so the default assumes you run from the repo root:
+    //     iverilog -o tb.vvp tb/tb_core.v rtl/*.v && vvp tb.vvp
+    // Building elsewhere? Override without editing this file:
+    //     iverilog -DMEM_DIR='"/abs/path/to/mem"' ...
+    `ifndef MEM_DIR
+      `define MEM_DIR "mem"
+    `endif
+    localparam MEM_DIR = `MEM_DIR;
 
     localparam integer N         = 16;
     localparam integer INPUTS    = 784;

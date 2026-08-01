@@ -1,3 +1,11 @@
+"""SUPERSEDED by train_asl_v2.py -- kept for reference only.
+
+This is the v1 ASL model: 64 hidden units, no input normalization. The
+committed weights in mem/ come from train_asl_v2.py (128 hidden, global
+mean/std normalization folded into layer 1 at export). Running this script
+overwrites mlp_asl_fp32.pt with a model the RTL parameters do not match.
+"""
+
 """
 Stage 1 (ASL variant): Train the float32 reference MLP.
 
