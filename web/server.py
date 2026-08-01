@@ -49,11 +49,12 @@ TIMEOUT = 5.0
 FRONTEND_DIR = os.path.join(ROOT, "frontend")
 MEM_DIR = os.path.join(ROOT, "mem")
 
-# Cycles per inference, from nn_accel_core.v:
-#   HIDDEN*(INPUTS/N) + NUM_CLASS*(HIDDEN/N) + 2*(DRAIN_CYCLES+1)
-#   = 128*49 + 24*8 + 2*8 = 6480 at 100 MHz
-# Served to the frontend so the latency meter cannot drift from the hardware.
-FPGA_CYCLES = 6480
+# Cycles per inference, PARSED FROM rtl/nn_accel_core.v rather than copied.
+# The frontend reads this from /api/info, so a hand-maintained constant here
+# would let the UI report a latency the hardware never had -- confidently
+# wrong, and nothing would flag it. Change DRAIN_CYCLES or HIDDEN in the RTL
+# and this follows automatically.
+FPGA_CYCLES = golden_check.expected_cycles()
 FPGA_CLK_HZ = 100_000_000
 FPGA_MS = FPGA_CYCLES / FPGA_CLK_HZ * 1000.0
 

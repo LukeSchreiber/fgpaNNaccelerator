@@ -13,16 +13,48 @@ Also prints the expected cycle count so the testbench result can be checked
 against the architectural prediction rather than just accepted.
 """
 
+import os
+import re
+
 import numpy as np
 
 N = 16
 INPUTS = 784
 MEM_DIR = "./mem"
 
-# Mirrors nn_accel_core.v. Two pipeline stages sit between the MAC inputs and
-# sum_r (mac_array's partial sums, then sum_r itself), so five cycles are
-# needed to drain a layer and the RTL allows seven.
-DRAIN_CYCLES = 7
+RTL_CORE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                        "..", "rtl", "nn_accel_core.v")
+
+
+def rtl_constants(path=RTL_CORE):
+    """Read N/INPUTS/HIDDEN/NUM_CLASS/DRAIN_CYCLES straight out of the RTL.
+
+    Parsed rather than duplicated. Every Python-side copy of a hardware
+    constant is a copy that can go stale, and a stale cycle count is the kind
+    of error that produces a confidently wrong number rather than a crash --
+    the web UI would happily report a latency the hardware never had.
+
+    Two pipeline stages sit between the MAC inputs and sum_r (mac_array's
+    partial sums, then sum_r itself), so five cycles are needed to drain a
+    layer; the RTL allows seven.
+    """
+    src = open(path).read()
+    want = ("N", "INPUTS", "HIDDEN", "NUM_CLASS", "DRAIN_CYCLES")
+    out = {}
+    for name in want:
+        m = re.search(rf"\b(?:parameter|localparam)\s+integer\s+{name}\s*=\s*(\d+)", src)
+        if not m:
+            raise RuntimeError(f"cannot find {name} in {path}")
+        out[name] = int(m.group(1))
+    return out
+
+
+def expected_cycles(c=None):
+    """Cycles per inference, derived from the RTL's own parameters."""
+    c = c or rtl_constants()
+    return (c["HIDDEN"] * (c["INPUTS"] // c["N"])
+            + c["NUM_CLASS"] * (c["HIDDEN"] // c["N"])
+            + 2 * (c["DRAIN_CYCLES"] + 1))
 
 RAW_LABELS = [i for i in range(26) if i not in (9, 25)]
 IDX_TO_LETTER = [chr(ord("A") + raw) for raw in RAW_LABELS]
@@ -95,8 +127,9 @@ def main():
     l2_chunks = hidden // N
     # Each layer ends by draining the pipeline for DRAIN_CYCLES+1 cycles; keep
     # this in step with the localparam of the same name in nn_accel_core.v.
-    drains = 2 * (DRAIN_CYCLES + 1)
-    expected = hidden * l1_chunks + l2_chunks * n_class + drains
+    rtl = rtl_constants()
+    drains = 2 * (rtl["DRAIN_CYCLES"] + 1)
+    expected = expected_cycles(rtl)
     print(f"\nexpected cycles/inference = {hidden}*{l1_chunks} + "
           f"{n_class}*{l2_chunks} + {drains} drain = {expected:,}")
     # 1e8 cycles/sec divided by cycles/inference. (Dividing 1e6 by the cycle

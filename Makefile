@@ -35,8 +35,7 @@ SRC_tb_core        := tb/tb_core.v $(RTL)
 SRC_tb_img_loader  := tb/tb_img_loader.v rtl/img_loader.v
 SRC_tb_mac_array   := tb/tb_mac_array.v rtl/mac_array.v rtl/mac_unit.v
 SRC_tb_mac_unit    := tb/tb_mac_unit.v rtl/mac_unit.v
-SRC_tb_datapath    := tb/tb_datapath.v rtl/mac_array.v rtl/mac_unit.v \
-                      rtl/requantize.v rtl/argmax.v rtl/rom_sync.v
+SRC_tb_datapath    := tb/tb_datapath.v rtl/requantize.v rtl/argmax.v
 SRC_tb_uart_rx     := tb/tb_uart_rx.v rtl/uart_rx.v
 SRC_tb_uart_tx     := tb/tb_uart_tx.v rtl/uart_tx.v
 

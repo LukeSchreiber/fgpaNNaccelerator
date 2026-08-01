@@ -50,7 +50,10 @@
       "Bash(python3 -c \"import serial\")",
       "Bash(git check-ignore *)",
       "Bash(grep -E \"\\\\.vvp$|\\\\.log$|\\\\.tmp|__pycache__|\\\\.pyc$\")",
-      "Bash(xargs -0 du -ch)"
+      "Bash(xargs -0 du -ch)",
+      "Bash(GIT_TERMINAL_PROMPT=0 timeout 90 git push)",
+      "Bash(GIT_TERMINAL_PROMPT=0 timeout 120 git push)",
+      "Bash(git ls-tree *)"
     ]
   }
 }
