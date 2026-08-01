@@ -1,0 +1,32 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//opt/**)",
+      "Read(//home/yetigod/Xilinx/**)",
+      "Bash(command -v vivado)",
+      "Bash(./venv/bin/pip install *)",
+      "Bash(./venv/bin/python /tmp/claude-1000/-home-yetigod-fpga-nn-accel/915014fb-8a91-4067-ad34-8f9059c470e6/scratchpad/pcheck.py rtl/img_loader.v rtl/nn_accel_top.v rtl/nn_accel_core.v rtl/uart_rx.v rtl/uart_tx.v)",
+      "Bash(./venv/bin/python /tmp/claude-1000/-home-yetigod-fpga-nn-accel/915014fb-8a91-4067-ad34-8f9059c470e6/scratchpad/pcheck.py rtl/nn_accel_top.v)",
+      "Bash(awk 'NR<=16{printf \"%s \", $0} END{print \"\"}' images.mem)",
+      "Bash(./venv/bin/python /tmp/claude-1000/-home-yetigod-fpga-nn-accel/915014fb-8a91-4067-ad34-8f9059c470e6/scratchpad/pcheck.py tb/tb_uart_rx.v tb/tb_core.v tb/tb_mac_array.v)",
+      "Bash(./venv/bin/python *)",
+      "Bash(timeout 90 apt-get download iverilog)",
+      "Bash(dpkg-deb -x iverilog_12.0-2build2_amd64.deb iv)",
+      "Bash(./iv/usr/bin/iverilog -V)",
+      "Bash(find /tmp/claude-1000/-home-yetigod-fpga-nn-accel/915014fb-8a91-4067-ad34-8f9059c470e6/scratchpad/iv -name ivl* -maxdepth 4 -type d)",
+      "Bash(/tmp/claude-1000/-home-yetigod-fpga-nn-accel/915014fb-8a91-4067-ad34-8f9059c470e6/scratchpad/iv.sh -o /tmp/claude-1000/-home-yetigod-fpga-nn-accel/915014fb-8a91-4067-ad34-8f9059c470e6/scratchpad/tb_core.vvp tb/tb_core.v rtl/nn_accel_core.v rtl/rom_sync.v rtl/mac_array.v rtl/mac_unit.v rtl/requantize.v rtl/argmax.v)",
+      "Bash(/tmp/claude-1000/-home-yetigod-fpga-nn-accel/915014fb-8a91-4067-ad34-8f9059c470e6/scratchpad/vvp.sh /tmp/claude-1000/-home-yetigod-fpga-nn-accel/915014fb-8a91-4067-ad34-8f9059c470e6/scratchpad/tb_core.vvp)",
+      "Bash(/tmp/claude-1000/-home-yetigod-fpga-nn-accel/915014fb-8a91-4067-ad34-8f9059c470e6/scratchpad/iv.sh -o /tmp/claude-1000/-home-yetigod-fpga-nn-accel/915014fb-8a91-4067-ad34-8f9059c470e6/scratchpad/tb_ldr.vvp tb/tb_img_loader.v rtl/img_loader.v)",
+      "Bash(/tmp/claude-1000/-home-yetigod-fpga-nn-accel/915014fb-8a91-4067-ad34-8f9059c470e6/scratchpad/iv.sh -o /tmp/claude-1000/-home-yetigod-fpga-nn-accel/915014fb-8a91-4067-ad34-8f9059c470e6/scratchpad/tb_core2.vvp tb/tb_core.v rtl/nn_accel_core.v rtl/rom_sync.v rtl/mac_array.v rtl/mac_unit.v rtl/requantize.v rtl/argmax.v)",
+      "Bash(/tmp/claude-1000/-home-yetigod-fpga-nn-accel/915014fb-8a91-4067-ad34-8f9059c470e6/scratchpad/vvp.sh /tmp/claude-1000/-home-yetigod-fpga-nn-accel/915014fb-8a91-4067-ad34-8f9059c470e6/scratchpad/tb_core2.vvp)",
+      "Bash(/tmp/claude-1000/-home-yetigod-fpga-nn-accel/915014fb-8a91-4067-ad34-8f9059c470e6/scratchpad/vvp.sh /tmp/claude-1000/-home-yetigod-fpga-nn-accel/915014fb-8a91-4067-ad34-8f9059c470e6/scratchpad/tb_c3.vvp)",
+      "Bash(/tmp/claude-1000/-home-yetigod-fpga-nn-accel/915014fb-8a91-4067-ad34-8f9059c470e6/scratchpad/iv.sh -o /tmp/claude-1000/-home-yetigod-fpga-nn-accel/915014fb-8a91-4067-ad34-8f9059c470e6/scratchpad/tb_core3.vvp tb/tb_core.v rtl/nn_accel_core.v rtl/rom_sync.v rtl/mac_array.v rtl/mac_unit.v rtl/requantize.v rtl/argmax.v)",
+      "Bash(/tmp/claude-1000/-home-yetigod-fpga-nn-accel/915014fb-8a91-4067-ad34-8f9059c470e6/scratchpad/vvp.sh /tmp/claude-1000/-home-yetigod-fpga-nn-accel/915014fb-8a91-4067-ad34-8f9059c470e6/scratchpad/tb_core3.vvp)",
+      "Bash(/tmp/claude-1000/-home-yetigod-fpga-nn-accel/915014fb-8a91-4067-ad34-8f9059c470e6/scratchpad/iv.sh -o /tmp/claude-1000/-home-yetigod-fpga-nn-accel/915014fb-8a91-4067-ad34-8f9059c470e6/scratchpad/tb_ma.vvp tb/tb_mac_array.v rtl/mac_array.v rtl/mac_unit.v)",
+      "Bash(/tmp/claude-1000/-home-yetigod-fpga-nn-accel/915014fb-8a91-4067-ad34-8f9059c470e6/scratchpad/vvp.sh /tmp/claude-1000/-home-yetigod-fpga-nn-accel/915014fb-8a91-4067-ad34-8f9059c470e6/scratchpad/tb_ma.vvp)",
+      "Bash(xargs -0 du -h)",
+      "Bash(git --version)",
+      "Bash(gh --version)"
+    ]
+  }
+}

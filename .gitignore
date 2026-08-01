@@ -1,0 +1,34 @@
+# Vivado generated -- gigabytes, and fully regenerable from the .xpr + rtl/
+nn_accel/nn_accel.runs/
+nn_accel/nn_accel.sim/
+nn_accel/nn_accel.cache/
+nn_accel/nn_accel.hw/
+nn_accel/nn_accel.ip_user_files/
+nn_accel/nn_accel.gen/
+.Xil/
+*.jou
+*.log
+*.str
+*.wdb
+*.pb
+
+# Python
+__pycache__/
+*.pyc
+venv/
+.venv/
+
+# ply/pyverilog parser tables
+parser.out
+parsetab.py
+
+# Simulation output
+*.vvp
+*.vcd
+
+# Datasets (too large: 164 MB, and sign_mnist_train.csv alone is 80 MB).
+# Note this is data/ at the repo root, not python/data/. The MNIST raw
+# idx-ubyte files under data/MNIST/ are NOT .csv, so the directory rule --
+# not the extension rule -- is what actually excludes them.
+data/
+*.csv
