@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FPGA ASL Classifier</title>
+<style>
+  :root {
+    --bg: #12141a;
+    --panel: #1b1e26;
+    --line: #2c313d;
+    --text: #e6e8ee;
+    --dim: #8b93a7;
+    --ok: #3ecf8e;
+    --bad: #ff6b6b;
+    --accent: #6aa5ff;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 2rem 1rem;
+    background: var(--bg); color: var(--text);
+    font: 15px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  main { max-width: 780px; margin: 0 auto; }
+  h1 { font-size: 1.4rem; margin: 0 0 .25rem; letter-spacing: -.01em; }
+  .sub { color: var(--dim); font-size: .875rem; margin-bottom: 1.75rem; }
+  .sub code { color: var(--accent); }
+
+  .panel {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 10px; padding: 1.25rem; margin-bottom: 1rem;
+  }
+  h2 {
+    font-size: .75rem; text-transform: uppercase; letter-spacing: .08em;
+    color: var(--dim); margin: 0 0 .875rem; font-weight: 600;
+  }
+
+  .imgs { display: flex; flex-wrap: wrap; gap: .375rem; }
+  .imgs button {
+    width: 2.25rem; height: 2.25rem; border-radius: 6px;
+    border: 1px solid var(--line); background: #232733; color: var(--text);
+    font: inherit; font-variant-numeric: tabular-nums; cursor: pointer;
+  }
+  .imgs button:hover { border-color: var(--accent); }
+  .imgs button[aria-pressed="true"] {
+    background: var(--accent); border-color: var(--accent); color: #0d1017;
+    font-weight: 600;
+  }
+
+  .row { display: flex; gap: 1.25rem; align-items: center; flex-wrap: wrap; }
+  canvas {
+    width: 140px; height: 140px; image-rendering: pixelated;
+    border: 1px solid var(--line); border-radius: 8px; background: #000;
+  }
+
+  .go {
+    padding: .625rem 1.125rem; border-radius: 8px; border: 0;
+    background: var(--accent); color: #0d1017; font: inherit; font-weight: 600;
+    cursor: pointer;
+  }
+  .go:disabled { opacity: .5; cursor: default; }
+
+  .verdict { flex: 1; min-width: 260px; }
+  .letter {
+    font-size: 4.5rem; line-height: 1; font-weight: 700; letter-spacing: -.03em;
+  }
+  .letter.ok  { color: var(--ok); }
+  .letter.bad { color: var(--bad); }
+  .letter.idle { color: var(--line); }
+
+  dl { display: grid; grid-template-columns: auto 1fr; gap: .25rem .875rem;
+       margin: .875rem 0 0; font-size: .875rem; }
+  dt { color: var(--dim); }
+  dd { margin: 0; font-variant-numeric: tabular-nums; }
+  .tag { font-weight: 600; }
+  .tag.ok  { color: var(--ok); }
+  .tag.bad { color: var(--bad); }
+
+  .err {
+    color: var(--bad); font-size: .875rem; margin-top: .75rem;
+    white-space: pre-wrap;
+  }
+  footer { color: var(--dim); font-size: .8125rem; text-align: center;
+           margin-top: 1.5rem; }
+</style>
+</head>
+<body>
+<main>
+  <h1>ASL classifier on a Basys 3</h1>
+  <p class="sub">
+    784 pixel bytes out over <code>UART</code>, one class byte back.
+    Inference runs in 64.8&nbsp;µs on the FPGA; everything else you see is wire time.
+  </p>
+
+  <section class="panel">
+    <h2>Test image</h2>
+    <div class="imgs" id="imgs"></div>
+  </section>
+
+  <section class="panel">
+    <div class="row">
+      <canvas id="canvas" width="28" height="28"></canvas>
+      <div class="verdict">
+        <div class="letter idle" id="letter">–</div>
+        <dl>
+          <dt>Predicted</dt><dd id="pred">—</dd>
+          <dt>Ground truth</dt><dd id="truth">—</dd>
+          <dt>Round trip</dt><dd id="lat">—</dd>
+        </dl>
+      </div>
+      <button class="go" id="go">Classify on FPGA</button>
+    </div>
+    <div class="err" id="err" hidden></div>
+  </section>
+
+  <footer id="foot"></footer>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+let selected = 0;
+
+// The board sees exactly these bytes, so draw exactly these bytes: the canvas
+// is the check that what got sent is what was meant.
+function draw(pixels) {
+  const ctx = $('canvas').getContext('2d');
+  const img = ctx.createImageData(28, 28);
+  for (let i = 0; i < 784; i++) {
+    const v = pixels[i];
+    img.data[i*4] = img.data[i*4+1] = img.data[i*4+2] = v;
+    img.data[i*4+3] = 255;
+  }
+  ctx.putImageData(img, 0, 0);
+}
+
+function showError(msg) {
+  const e = $('err');
+  e.hidden = false;
+  e.textContent = msg;
+}
+function clearError() { $('err').hidden = true; }
+
+async function select(i) {
+  selected = i;
+  for (const b of $('imgs').children)
+    b.setAttribute('aria-pressed', String(Number(b.textContent) === i));
+
+  clearError();
+  $('letter').className = 'letter idle';
+  $('letter').textContent = '–';
+  $('pred').textContent = '—';
+  $('lat').textContent = '—';
+
+  const r = await fetch(`/api/image/${i}`);
+  const d = await r.json();
+  draw(d.pixels);
+  $('truth').textContent = `${d.ground_truth_letter} (class ${d.ground_truth})`;
+}
+
+async function classify() {
+  $('go').disabled = true;
+  clearError();
+  try {
+    const r = await fetch('/predict-test', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({index: selected})
+    });
+    const d = await r.json();
+    if (!r.ok) { showError(d.error || `HTTP ${r.status}`); return; }
+
+    $('letter').textContent = d.predicted_letter;
+    $('letter').className = 'letter ' + (d.correct ? 'ok' : 'bad');
+    $('pred').innerHTML =
+      `<span class="tag ${d.correct ? 'ok' : 'bad'}">${d.predicted_letter}</span>` +
+      ` (class ${d.predicted_class}) — ${d.correct ? 'correct' : 'incorrect'}`;
+    $('truth').textContent = `${d.ground_truth_letter} (class ${d.ground_truth})`;
+    $('lat').textContent = `${d.latency_ms} ms`;
+  } catch (e) {
+    showError(String(e));
+  } finally {
+    $('go').disabled = false;
+  }
+}
+
+(async function init() {
+  const info = await (await fetch('/api/info')).json();
+  for (let i = 0; i < info.n_images; i++) {
+    const b = document.createElement('button');
+    b.textContent = i;
+    b.setAttribute('aria-pressed', 'false');
+    b.onclick = () => select(i);
+    $('imgs').appendChild(b);
+  }
+  $('foot').textContent = `${info.port} @ ${info.baud} baud · 24 classes (J and Z omitted — both need motion)`;
+  $('go').onclick = classify;
+  await select(0);
+})();
+</script>
+</body>
+</html>
