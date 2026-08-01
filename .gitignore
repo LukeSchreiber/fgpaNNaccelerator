@@ -32,3 +32,9 @@ parsetab.py
 # not the extension rule -- is what actually excludes them.
 data/
 *.csv
+
+# Simulation build output
+build/
+
+# editor/tool temp files
+*.tmp.*

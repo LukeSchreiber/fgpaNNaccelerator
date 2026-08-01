@@ -46,7 +46,11 @@
       "Bash(node --check frontend/app.js)",
       "Bash(curl -s localhost:5000/api/info)",
       "Bash(curl -s -w \"\\\\n  [HTTP %{http_code}]\\\\n\" -X POST localhost:5000/predict-test -H 'Content-Type: application/json' -d '{\"index\":3}')",
-      "Bash(command -v vivado hw_server)"
+      "Bash(command -v vivado hw_server)",
+      "Bash(python3 -c \"import serial\")",
+      "Bash(git check-ignore *)",
+      "Bash(grep -E \"\\\\.vvp$|\\\\.log$|\\\\.tmp|__pycache__|\\\\.pyc$\")",
+      "Bash(xargs -0 du -ch)"
     ]
   }
 }

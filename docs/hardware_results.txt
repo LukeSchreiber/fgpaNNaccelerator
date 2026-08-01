@@ -1,3 +1,21 @@
+Hardware verification -- FPGA vs integer golden model
+=====================================================
+
+Generated: 2026-08-01T14:00:57-04:00
+Commit:    aac5fdc (bitstream built from this RTL)
+Bitstream: bit/nn_accel_top.bit  (2192215 bytes,
+           md5 5733704b9ba41d8d5b7913672a91eaff)
+Board:     Basys 3 / Artix-7 XC7A35T, /dev/ttyUSB1 @ 115200 8N1
+
+Each image is sent as 784 raw pixel bytes over UART; the board returns
+one byte with the predicted class. 'golden model' is the integer
+reference in python/, the same one tb_core.v checks the RTL against.
+The hardware must match the GOLDEN column exactly -- the true label is
+shown for context, and the quantized model is ~92% accurate, so it can
+legitimately disagree with the truth while the hardware is correct.
+
+-----------------------------------------------------------------
+
 image 0: sending 784 bytes to /dev/ttyUSB1 at 115200 baud (68 ms)
 
   hardware       6  G
@@ -5,6 +23,7 @@ image 0: sending 784 bytes to /dev/ttyUSB1 at 115200 baud (68 ms)
   true label     6  G
 
 match: hardware agrees with the golden model
+
 image 1: sending 784 bytes to /dev/ttyUSB1 at 115200 baud (68 ms)
 
   hardware       5  F
@@ -12,6 +31,7 @@ image 1: sending 784 bytes to /dev/ttyUSB1 at 115200 baud (68 ms)
   true label     5  F
 
 match: hardware agrees with the golden model
+
 image 2: sending 784 bytes to /dev/ttyUSB1 at 115200 baud (68 ms)
 
   hardware       9  K
@@ -19,6 +39,7 @@ image 2: sending 784 bytes to /dev/ttyUSB1 at 115200 baud (68 ms)
   true label     9  K
 
 match: hardware agrees with the golden model
+
 image 3: sending 784 bytes to /dev/ttyUSB1 at 115200 baud (68 ms)
 
   hardware       0  A
@@ -26,6 +47,7 @@ image 3: sending 784 bytes to /dev/ttyUSB1 at 115200 baud (68 ms)
   true label     0  A
 
 match: hardware agrees with the golden model
+
 image 4: sending 784 bytes to /dev/ttyUSB1 at 115200 baud (68 ms)
 
   hardware       3  D
@@ -33,6 +55,7 @@ image 4: sending 784 bytes to /dev/ttyUSB1 at 115200 baud (68 ms)
   true label     3  D
 
 match: hardware agrees with the golden model
+
 image 5: sending 784 bytes to /dev/ttyUSB1 at 115200 baud (68 ms)
 
   hardware      21  W
@@ -40,6 +63,7 @@ image 5: sending 784 bytes to /dev/ttyUSB1 at 115200 baud (68 ms)
   true label    20  V
 
 match: hardware agrees with the golden model  (both differ from the true label)
+
 image 6: sending 784 bytes to /dev/ttyUSB1 at 115200 baud (68 ms)
 
   hardware       9  K
@@ -47,6 +71,7 @@ image 6: sending 784 bytes to /dev/ttyUSB1 at 115200 baud (68 ms)
   true label     9  K
 
 match: hardware agrees with the golden model
+
 image 7: sending 784 bytes to /dev/ttyUSB1 at 115200 baud (68 ms)
 
   hardware      13  O
@@ -54,6 +79,7 @@ image 7: sending 784 bytes to /dev/ttyUSB1 at 115200 baud (68 ms)
   true label    13  O
 
 match: hardware agrees with the golden model
+
 image 8: sending 784 bytes to /dev/ttyUSB1 at 115200 baud (68 ms)
 
   hardware       3  D
@@ -61,6 +87,7 @@ image 8: sending 784 bytes to /dev/ttyUSB1 at 115200 baud (68 ms)
   true label     3  D
 
 match: hardware agrees with the golden model
+
 image 9: sending 784 bytes to /dev/ttyUSB1 at 115200 baud (68 ms)
 
   hardware       7  H
@@ -68,6 +95,7 @@ image 9: sending 784 bytes to /dev/ttyUSB1 at 115200 baud (68 ms)
   true label     7  H
 
 match: hardware agrees with the golden model
+
 image 10: sending 784 bytes to /dev/ttyUSB1 at 115200 baud (68 ms)
 
   hardware       8  I
@@ -75,6 +103,7 @@ image 10: sending 784 bytes to /dev/ttyUSB1 at 115200 baud (68 ms)
   true label     8  I
 
 match: hardware agrees with the golden model
+
 image 11: sending 784 bytes to /dev/ttyUSB1 at 115200 baud (68 ms)
 
   hardware       8  I
@@ -82,6 +111,7 @@ image 11: sending 784 bytes to /dev/ttyUSB1 at 115200 baud (68 ms)
   true label     8  I
 
 match: hardware agrees with the golden model
+
 image 12: sending 784 bytes to /dev/ttyUSB1 at 115200 baud (68 ms)
 
   hardware      20  V
@@ -89,6 +119,7 @@ image 12: sending 784 bytes to /dev/ttyUSB1 at 115200 baud (68 ms)
   true label    20  V
 
 match: hardware agrees with the golden model
+
 image 13: sending 784 bytes to /dev/ttyUSB1 at 115200 baud (68 ms)
 
   hardware      11  M
@@ -96,6 +127,7 @@ image 13: sending 784 bytes to /dev/ttyUSB1 at 115200 baud (68 ms)
   true label    11  M
 
 match: hardware agrees with the golden model
+
 image 14: sending 784 bytes to /dev/ttyUSB1 at 115200 baud (68 ms)
 
   hardware       7  H
@@ -103,6 +135,7 @@ image 14: sending 784 bytes to /dev/ttyUSB1 at 115200 baud (68 ms)
   true label     7  H
 
 match: hardware agrees with the golden model
+
 image 15: sending 784 bytes to /dev/ttyUSB1 at 115200 baud (68 ms)
 
   hardware       4  E
@@ -110,3 +143,4 @@ image 15: sending 784 bytes to /dev/ttyUSB1 at 115200 baud (68 ms)
   true label     4  E
 
 match: hardware agrees with the golden model
+
