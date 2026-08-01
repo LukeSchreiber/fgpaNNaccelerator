@@ -38,3 +38,6 @@ build/
 
 # editor/tool temp files
 *.tmp.*
+
+# Claude Code per-machine settings (settings.json stays shared)
+.claude/settings.local.json

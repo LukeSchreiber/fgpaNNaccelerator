@@ -39,7 +39,7 @@ SRC_tb_datapath    := tb/tb_datapath.v rtl/requantize.v rtl/argmax.v
 SRC_tb_uart_rx     := tb/tb_uart_rx.v rtl/uart_rx.v
 SRC_tb_uart_tx     := tb/tb_uart_tx.v rtl/uart_tx.v
 
-.PHONY: test $(TESTS) clean lint
+.PHONY: test $(TESTS) clean lint mem
 
 # A testbench that fails prints FAIL lines but still exits 0, so the pass/fail
 # decision comes from the summary line each one prints, not the exit status.
@@ -76,6 +76,25 @@ lint:
 	  rtl/uart_tx.v rtl/seven_seg.v rtl/rom_sync.v rtl/mac_array.v \
 	  rtl/mac_unit.v rtl/requantize.v rtl/argmax.v
 	@echo "  nn_accel_top elaborates clean"
+
+# Regenerate the weight/golden files from the trained checkpoint.
+#
+# NEEDS data/sign_mnist_*.csv, which is NOT in the repo (164 MB) -- that is why
+# mem/*.mem is tracked rather than gitignored: without the dataset a fresh
+# clone cannot rebuild it, and tb_img_loader.v and the web server both read
+# those files. Training itself is deliberately not wired in here; it is slow,
+# needs a GPU to be pleasant, and overwrites the checkpoint.
+PYTHON ?= ./venv/bin/python
+
+mem:
+	@test -f data/sign_mnist_train.csv || { \
+	  echo "  data/sign_mnist_train.csv missing -- download Sign Language MNIST"; \
+	  echo "  (kaggle.com/datasets/datamunge/sign-language-mnist) into data/"; \
+	  exit 1; }
+	$(PYTHON) python/quantize.py
+	$(PYTHON) python/pack_mem.py
+	$(PYTHON) python/golden_check.py
+	@echo "  mem/ regenerated -- run 'make test' to confirm the RTL still matches"
 
 clean:
 	@rm -rf $(BUILD)
