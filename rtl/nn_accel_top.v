@@ -9,7 +9,8 @@
 //   7-seg         [letter] [ ] [tens] [ones]   predicted class
 //   LD15          done
 //   LD14          busy
-//   LD[13:0]      cycle count, upper bits (a crude latency display)
+//   LD13          UART framing error since reset (sticky)
+//   LD[12:0]      cycle count, upper bits (a crude latency display)
 //
 // The weights, biases and the display are exactly as they were; only where
 // the image comes from has changed. w1/w2/b1/b2 still load from .mem files
@@ -146,11 +147,23 @@ module nn_accel_top #(
     //---------------------------------------------------------------
     wire [7:0] rx_data;
     wire       rx_valid;
+    wire       rx_framing_error;
 
     uart_rx #(.DIVISOR(BAUD_DIV), .HALF_DIV(BAUD_HALF)) u_rx (
         .clk(clk), .rst(rst), .rx(RsRx),
-        .data_out(rx_data), .data_valid(rx_valid)
+        .data_out(rx_data), .data_valid(rx_valid),
+        .framing_error(rx_framing_error)
     );
+
+    // Sticky, because a framing error is a single-cycle event on a link that
+    // delivers 784 bytes in 8.5 ms -- nobody would ever see it flash. It stays
+    // lit until reset, so "the link glitched at some point since power-up" is
+    // answerable by looking at the board instead of guessing.
+    reg frame_err_sticky;
+    always @(posedge clk) begin
+        if (rst)                  frame_err_sticky <= 1'b0;
+        else if (rx_framing_error) frame_err_sticky <= 1'b1;
+    end
 
     wire               img_ready;
     wire               img_ack;
@@ -269,8 +282,11 @@ module nn_accel_top #(
         .an(an), .seg(seg), .dp(dp)
     );
 
-    // cycles[13:0] would never change visibly; bits [17:4] give a coarse
+    // cycles[13:0] would never change visibly; the upper bits give a coarse
     // read of the latency that lands in a useful range for ~6,500 cycles.
-    assign led = {done, busy, cycles[17:4]};
+    // LD13 is the sticky framing-error flag: if it is lit the serial link has
+    // mistimed a frame since reset, which is the one failure the host cannot
+    // see (the byte is still delivered, so nothing upstream reports it).
+    assign led = {done, busy, frame_err_sticky, cycles[17:5]};
 
 endmodule

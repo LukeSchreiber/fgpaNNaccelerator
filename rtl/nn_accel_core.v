@@ -69,7 +69,7 @@
 //   total                6480 cycles = 64.8 us at 100 MHz
 //
 // Was 6476 with the reduction combinational and 6478 with sum_r; each pipeline
-// stage costs one drain cycle per layer, so 2 cycles out of 6,478 -- 0.03% of
+// stage costs one drain cycle per layer, so 2 cycles out of 6,480 -- 0.03% of
 // the runtime to halve the longest path.
 //=============================================================================
 

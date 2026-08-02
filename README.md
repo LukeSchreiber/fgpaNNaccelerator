@@ -75,7 +75,7 @@ changes the predicted class on exactly **one of 16 images and leaves the other
 that matters in a pipelined design: not a crash, a quiet 4%-accuracy build.
 
 ```bash
-make test          # all 7 testbenches, pass/fail summary
+make test          # all 8 testbenches, pass/fail summary
 make tb_core       # just one
 make lint          # elaborate the Basys 3 top level
 ```
@@ -112,6 +112,9 @@ match: hardware agrees with the golden model
 ```
 
 `BTNC` re-runs the buffered image without a resend; `BTNU` resets.
+`LD13` is a sticky UART framing-error flag — lit means the link mistimed a
+frame since reset. The byte is still delivered (one bad pixel in 784 beats
+a stalled transfer), so the LED is the only place that corruption shows.
 
 To rebuild the weights from scratch (needs the dataset CSVs, not in this repo):
 

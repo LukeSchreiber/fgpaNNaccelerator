@@ -19,6 +19,20 @@
 //
 // data_valid is a one-cycle pulse coincident with data_out becoming valid;
 // data_out then holds until the next frame completes.
+//
+// FRAMING ERRORS
+// --------------
+// The stop bit must be high. If it is not, the frame was mistimed -- wrong
+// baud, a glitch, a byte boundary lost -- and the eight bits already shifted
+// in are not trustworthy.
+//
+// framing_error pulses alongside data_valid, and THE BYTE IS STILL DELIVERED.
+// Suppressing it would be the wrong trade here: this link carries a 784-byte
+// image, so one bad byte is one bad pixel out of 784 and almost certainly the
+// same classification, whereas a dropped byte leaves the image one short --
+// the loader then waits out its 50 ms watchdog and the host waits out a 5 s
+// timeout. Corruption that is visible is the goal; degrading a working link
+// to achieve it is not.
 //=============================================================================
 
 module uart_rx #(
@@ -29,7 +43,8 @@ module uart_rx #(
     input  wire       rst,        // synchronous, active high
     input  wire       rx,         // asynchronous serial input
     output reg  [7:0] data_out,
-    output reg        data_valid  // one-cycle pulse
+    output reg        data_valid,    // one-cycle pulse
+    output reg        framing_error  // one-cycle pulse, coincident with data_valid
 );
 
     localparam [1:0] S_IDLE  = 2'd0,
@@ -60,14 +75,16 @@ module uart_rx #(
 
     always @(posedge clk) begin
         if (rst) begin
-            state      <= S_IDLE;
-            cnt        <= {CNT_W{1'b0}};
-            bit_idx    <= 3'd0;
-            shift      <= 8'd0;
-            data_out   <= 8'd0;
-            data_valid <= 1'b0;
+            state         <= S_IDLE;
+            cnt           <= {CNT_W{1'b0}};
+            bit_idx       <= 3'd0;
+            shift         <= 8'd0;
+            data_out      <= 8'd0;
+            data_valid    <= 1'b0;
+            framing_error <= 1'b0;
         end else begin
-            data_valid <= 1'b0;   // default; overridden for one cycle below
+            data_valid    <= 1'b0;   // default; overridden for one cycle below
+            framing_error <= 1'b0;
 
             case (state)
 
@@ -111,15 +128,16 @@ module uart_rx #(
                 end
 
                 // Consume the stop bit so the receiver cannot mistake the tail
-                // of this frame for the start of the next. The stop bit's level
-                // is not checked -- a framing error would only cost the byte
-                // that has already been shifted in.
+                // of this frame for the start of the next, and check its level:
+                // a low stop bit means the frame was mistimed and the eight
+                // bits already shifted in cannot be trusted.
                 S_STOP: begin
                     if (cnt == DIVISOR - 1) begin
-                        cnt        <= {CNT_W{1'b0}};
-                        data_out   <= shift;
-                        data_valid <= 1'b1;
-                        state      <= S_IDLE;
+                        cnt           <= {CNT_W{1'b0}};
+                        data_out      <= shift;
+                        data_valid    <= 1'b1;
+                        framing_error <= ~rx_sync;
+                        state         <= S_IDLE;
                     end else begin
                         cnt <= cnt + 1'b1;
                     end

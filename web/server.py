@@ -177,8 +177,9 @@ class Board:
         if not reply:
             raise TimeoutError(
                 f"no reply from {self.resolved} within {self.timeout}s -- is the "
-                f"board programmed with nn_accel_top? A partial image may be "
-                f"buffered; press BTNU to reset the loader.")
+                f"board programmed with nn_accel_top? A truncated stream is "
+                f"discarded by the loader's watchdog after 50 ms, so simply "
+                f"retrying is safe.")
 
         return reply[0], elapsed_ms
 

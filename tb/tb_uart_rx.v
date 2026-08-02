@@ -31,6 +31,7 @@ module tb_uart_rx;
     reg        rx  = 1;      // idle high
     wire [7:0] data_out;
     wire       data_valid;
+    wire       framing_error;
 
     integer errors = 0;
     integer i;
@@ -39,7 +40,8 @@ module tb_uart_rx;
         .DIVISOR(DIVISOR), .HALF_DIV(HALF_DIV)
     ) dut (
         .clk(clk), .rst(rst), .rx(rx),
-        .data_out(data_out), .data_valid(data_valid)
+        .data_out(data_out), .data_valid(data_valid),
+        .framing_error(framing_error)
     );
 
     always #5 clk = ~clk;    // 100 MHz -> 10 ns period
@@ -52,12 +54,16 @@ module tb_uart_rx;
     reg  [7:0] captured     = 0;
     integer    valid_cycles = 0;
 
+    reg saw_framing = 0;
+
     always @(posedge clk) begin
         if (!rst && data_valid) begin
             saw_valid    <= 1'b1;
             captured     <= data_out;
             valid_cycles <= valid_cycles + 1;
         end
+        if (!rst && framing_error)
+            saw_framing <= 1'b1;
     end
 
     //-------------------------------------------------------------------------
@@ -83,6 +89,18 @@ module tb_uart_rx;
             for (k = 0; k < 8; k = k + 1)
                 send_bit(b[k]);
             send_bit(1'b1);
+        end
+    endtask
+
+    // The same frame with the stop bit held LOW: what a wrong baud rate or a
+    // lost byte boundary looks like to the receiver.
+    task send_byte_bad_stop(input [7:0] b);
+        integer k;
+        begin
+            send_bit(1'b0);
+            for (k = 0; k < 8; k = k + 1)
+                send_bit(b[k]);
+            send_bit(1'b0);          // framing error
         end
     endtask
 
@@ -135,6 +153,42 @@ module tb_uart_rx;
             end else begin
                 $display("pass: data_out holds after the pulse");
             end
+        end
+
+        //-------------------------------------------------------------------
+        // framing: a low stop bit must be flagged, and the byte still delivered
+        //-------------------------------------------------------------------
+        saw_valid = 0; saw_framing = 0;
+        rx = 1'b1;
+        repeat (2*DIVISOR) @(posedge clk);      // let the line settle to idle
+
+        send_byte_bad_stop(8'h41);
+        rx = 1'b1;
+        repeat (2*DIVISOR) @(posedge clk);      // resync: a low stop looks like a start
+
+        if (!saw_framing) begin
+            $display("FAIL: framing_error never asserted on a low stop bit");
+            errors = errors + 1;
+        end else begin
+            $display("pass: framing_error flags a low stop bit");
+        end
+
+        if (!saw_valid) begin
+            $display("FAIL: byte was dropped on a framing error (should still arrive)");
+            errors = errors + 1;
+        end else begin
+            $display("pass: the byte is still delivered, corruption is reported not hidden");
+        end
+
+        // and a good frame afterwards must NOT be flagged
+        saw_framing = 0;
+        send_byte(TEST_BYTE);
+        repeat (DIVISOR) @(posedge clk);
+        if (saw_framing) begin
+            $display("FAIL: framing_error asserted on a well-formed frame");
+            errors = errors + 1;
+        end else begin
+            $display("pass: a clean frame raises no framing error");
         end
 
         $display("");
