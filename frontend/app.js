@@ -108,6 +108,8 @@ async function classify() {
       chip(d.correct ? 'correct' : 'incorrect', d.correct ? 'ok' : 'bad') +
       chip(`predicted ${d.predicted_letter} · class ${d.predicted_class}`) +
       chip(`truth ${d.ground_truth_letter} · class ${d.ground_truth}`) +
+      chip(`logit ${d.hardware_score.toLocaleString()}`) +
+      chip(`${d.margin_pct}% over ${d.runner_up_letter}`) +
       chip(`${d.latency_ms} ms`);
     drawMeter(d.latency_ms);
     $('tally').textContent = `${right} / ${done} correct`;
@@ -162,7 +164,8 @@ async function upload(file) {
       ? 'hardware matches model'
       : `HARDWARE ≠ MODEL (model says ${d.golden_letter})`;
     $('uMatch').className = 'chip ' + (d.matches_model ? 'ok' : 'bad');
-    $('uClass').textContent = `${d.predicted_letter} · class ${d.predicted_class}`;
+    $('uClass').textContent =
+      `${d.predicted_letter} · ${d.margin_pct}% over ${d.runner_up_letter}`;
     $('uLat').textContent = `${d.latency_ms} ms`;
     setStatus('ready');
   } catch (e) {

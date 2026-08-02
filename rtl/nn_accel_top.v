@@ -235,28 +235,58 @@ module nn_accel_top #(
     assign img_rd_addr = img_addr_full[IMG_AW-1:0];
 
     //---------------------------------------------------------------
-    // UART transmit: one byte per result
+    // UART transmit: five bytes per result
     //
-    // `done` is a level that holds through S_DONE, so the send pulse comes off
-    // its rising edge -- driving send from the level would re-trigger the
+    //   [0]     class index 0..23
+    //   [1..4]  the winning logit, int32 little-endian
+    //
+    // The score costs 4 bytes on a link that just moved 784, and it turns the
+    // host's check from "same class" into "same number". An argmax match only
+    // says the hardware landed on the same side of a comparison; the logit is
+    // bit-exact or it is not -- which is the property tb_core.v checks in
+    // simulation, now available on the live path too.
+    //
+    // It also makes a wrong answer legible. Image 5 comes back as W with a
+    // logit 2.8% above V: with the score in hand the UI can say "narrowly
+    // chose W over V" instead of just being wrong.
+    //
+    // `done` is a level that holds through S_DONE, so the burst is triggered
+    // off its rising edge -- driving send from the level would re-trigger the
     // transmitter every cycle until the next image arrived.
     //---------------------------------------------------------------
-    reg        done_d;
-    reg        tx_send;
-    reg  [7:0] tx_data;
-    wire       tx_busy;
+    localparam integer TX_BYTES = 5;
+
+    reg         done_d;
+    reg         tx_send;
+    reg  [7:0]  tx_data;
+    reg  [39:0] tx_shift;    // {score[31:0], class byte}, sent low byte first
+    reg  [2:0]  tx_left;     // bytes still to send
+    wire        tx_busy;
 
     always @(posedge clk) begin
         if (rst) begin
-            done_d  <= 1'b0;
-            tx_send <= 1'b0;
-            tx_data <= 8'd0;
+            done_d   <= 1'b0;
+            tx_send  <= 1'b0;
+            tx_data  <= 8'd0;
+            tx_shift <= 40'd0;
+            tx_left  <= 3'd0;
         end else begin
             done_d  <= done;
-            tx_send <= 1'b0;
-            if (done && !done_d && !tx_busy) begin
-                tx_data <= {3'b000, pred};   // class index 0..23, raw byte
-                tx_send <= 1'b1;
+            tx_send <= 1'b0;          // default; one-cycle pulse below
+
+            if (done && !done_d && tx_left == 3'd0) begin
+                // Latch the whole reply at once: pred/pred_score are stable
+                // from the moment done rises until the next inference starts.
+                tx_shift <= {pred_score, 3'b000, pred};
+                tx_left  <= TX_BYTES[2:0];
+            end else if (tx_left != 3'd0 && !tx_busy && !tx_send) begin
+                // busy rises the cycle after a send is accepted, and tx_send is
+                // still high on the cycle it is issued, so both terms are
+                // needed to keep from double-issuing into the same frame.
+                tx_data  <= tx_shift[7:0];
+                tx_shift <= {8'd0, tx_shift[39:8]};
+                tx_send  <= 1'b1;
+                tx_left  <= tx_left - 1'b1;
             end
         end
     end

@@ -3,11 +3,11 @@
 An INT8 neural network accelerator on a Basys 3 (Xilinx Artix-7 XC7A35T) that
 classifies American Sign Language letters from images streamed in over UART.
 
-Send 784 pixel bytes to the board; it returns the predicted class in 64.8 µs
-and shows the letter on the seven-segment display.
+Send 784 pixel bytes to the board; it returns the predicted class and its
+winning logit in 64.8 µs, and shows the letter on the seven-segment display.
 
 ```
-host ──784 bytes──> uart_rx ─> img_loader ─> nn_accel_core ─> argmax ─> uart_tx ──1 byte──> host
+host ──784 bytes──> uart_rx ─> img_loader ─> nn_accel_core ─> argmax ─> uart_tx ─5 bytes─> host
                                                   │
                                                   └─> seven_seg
 ```
@@ -104,12 +104,17 @@ python python/predict.py 0        # port is auto-detected
 ```
 image 0: sending 784 bytes to /dev/ttyUSB2 at 921600 baud (9 ms)
 
-  hardware       6  G
-  golden model   6  G
+  hardware       6  G   logit   11,656
+  golden model   6  G   logit   11,656
   true label     6  G
 
 match: hardware agrees with the golden model
 ```
+
+The reply is 5 bytes: the class, then the winning logit as an int32. The logit
+is what makes the check mean something — a matching class only says the argmax
+fell the same way, while the logit is bit-exact or it is not. That is the
+standard `tb_core.v` holds the RTL to in simulation, now available live.
 
 `BTNC` re-runs the buffered image without a resend; `BTNU` resets.
 `LD13` is a sticky UART framing-error flag — lit means the link mistimed a

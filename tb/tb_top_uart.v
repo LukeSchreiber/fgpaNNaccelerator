@@ -3,7 +3,8 @@
 // tb_top_uart.v -- end-to-end test of the Basys 3 top level over the wire
 //
 // Drives real 8N1 frames into RsRx at the deployed baud rate, waits for the
-// board to classify, and decodes the byte that comes back on RsTx. Nothing
+// board to classify, and decodes the 5-byte reply on RsTx (class, then the
+// int32 winning logit little-endian). Nothing
 // reaches inside the design: this is exactly what predict.py does, minus the
 // USB.
 //
@@ -50,8 +51,9 @@ module tb_top_uart;
     integer errors = 0;
     integer i;
 
-    reg [7:0] px         [0:N_IMAGES*INPUTS-1];
-    reg [7:0] expect_pred[0:N_IMAGES-1];
+    reg [7:0]  px          [0:N_IMAGES*INPUTS-1];
+    reg [7:0]  expect_pred [0:N_IMAGES-1];
+    reg [31:0] expect_score[0:N_IMAGES-1];
 
     nn_accel_top #(
         .W1_FILE({MEM_DIR, "/w1_packed.mem"}),
@@ -104,17 +106,27 @@ module tb_top_uart;
     // before the sending task returns control, so it has to be caught rather
     // than polled for afterwards.
     //-------------------------------------------------------------------------
-    reg [7:0] got = 8'hxx;
-    reg       got_valid = 0;
+    // The reply is 5 bytes: class, then the int32 logit little-endian.
+    reg [7:0]  got_class = 8'hxx;
+    reg [31:0] got_score = 32'hxxxxxxxx;
+    reg        got_valid = 0;
 
-    initial begin
-        uart_recv(got);
+    initial begin : receiver
+        reg [7:0] b;
+        integer   n;
+        uart_recv(b);
+        got_class = b;
+        for (n = 0; n < 4; n = n + 1) begin
+            uart_recv(b);
+            got_score[n*8 +: 8] = b;      // little-endian
+        end
         got_valid = 1'b1;
     end
 
     initial begin
         $readmemh({MEM_DIR, "/images.mem"}, px);
-        $readmemh({MEM_DIR, "/preds.mem"}, expect_pred);
+        $readmemh({MEM_DIR, "/preds.mem"},  expect_pred);
+        $readmemh({MEM_DIR, "/scores.mem"}, expect_score);
 
         repeat (10) @(posedge clk);
         btnU = 0;                                  // release reset
@@ -134,23 +146,35 @@ module tb_top_uart;
         end
 
         if (!got_valid) begin
-            $display("FAIL: no reply on RsTx after the full image");
+            $display("FAIL: no complete 5-byte reply on RsTx");
             errors = errors + 1;
         end else begin
-            $display("pass: board replied on RsTx");
-            if (got !== expect_pred[TEST_IMG]) begin
+            $display("pass: board replied with all %0d bytes", 5);
+
+            if (got_class !== expect_pred[TEST_IMG]) begin
                 $display("FAIL: class %0d, golden model says %0d",
-                         got, expect_pred[TEST_IMG]);
+                         got_class, expect_pred[TEST_IMG]);
                 errors = errors + 1;
             end else begin
-                $display("pass: class %0d matches the golden model", got);
+                $display("pass: class %0d matches the golden model", got_class);
+            end
+
+            // The logit is the real check: a class match only says the argmax
+            // fell the same way, this says the arithmetic is identical.
+            if (got_score !== expect_score[TEST_IMG]) begin
+                $display("FAIL: logit %0d, golden model says %0d",
+                         $signed(got_score), $signed(expect_score[TEST_IMG]));
+                errors = errors + 1;
+            end else begin
+                $display("pass: logit %0d is bit-exact against the golden model",
+                         $signed(got_score));
             end
         end
 
         // The watchdog must not have fired mid-transfer: it is 5,000,000 clocks
         // and the gap between bytes here is zero, but a botched idle counter
         // would have discarded the image and there would be no reply at all.
-        if (got_valid && got === expect_pred[TEST_IMG])
+        if (got_valid && got_class === expect_pred[TEST_IMG])
             $display("pass: watchdog did not trip during a continuous stream");
 
         $display("");

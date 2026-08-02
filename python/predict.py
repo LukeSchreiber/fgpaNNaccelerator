@@ -5,9 +5,14 @@ Stage 4: send one demo image to the board over the UART and read the class back.
 
 The port is auto-detected from the USB descriptors; --port overrides.
 
-The board runs continuously: 784 bytes in on RsRx starts an inference, one byte
-comes back on RsTx with the predicted class index. No header, no framing, no
-command bytes -- the byte count IS the protocol.
+The board runs continuously: 784 bytes in on RsRx starts an inference, and
+5 bytes come back on RsTx -- the predicted class, then the winning logit as an
+int32 little-endian. No header, no framing, no command bytes: the byte count
+IS the protocol.
+
+The logit is what makes the check meaningful. A matching class only says the
+argmax fell the same way; the logit is bit-exact or it is not, which is the
+same standard tb_core.v holds the RTL to in simulation.
 
 WHY THE IMAGE COMES FROM images_packed.mem AND NOT images.mem
 -------------------------------------------------------------
@@ -59,6 +64,8 @@ IDX_TO_LETTER = [chr(ord("A") + raw) for raw in RAW_LABELS]
 # what order, and it changes whenever the board is re-plugged -- so the device
 # is found by what it IS, not by where it happened to appear last time.
 FTDI_VID = 0x0403
+
+REPLY_BYTES = 5          # class byte + int32 logit, little-endian
 
 
 class PortNotFound(Exception):
@@ -145,7 +152,7 @@ def unpack_image(packed, index):
 
 
 def classify(port, image, timeout):
-    """Send one image, return the class index the board sends back."""
+    """Send one image, return (class index, winning logit, extra bytes)."""
     with serial.Serial(port, BAUD, timeout=timeout) as ser:
         # Anything already buffered is from an earlier run -- a stale result
         # byte would be read as this image's answer.
@@ -154,22 +161,24 @@ def classify(port, image, timeout):
         ser.write(image)
         ser.flush()
 
-        reply = ser.read(1)
-        if not reply:
+        reply = ser.read(REPLY_BYTES)
+        if len(reply) < REPLY_BYTES:
             sys.exit(
-                f"no reply within {timeout}s.\n"
+                f"got {len(reply)} of {REPLY_BYTES} reply bytes within "
+                f"{timeout}s.\n"
                 f"  - is the board programmed with nn_accel_top?\n"
                 f"  - is {port} the UART and not the JTAG interface?\n"
                 f"  - a truncated stream is discarded after 50 ms; just retry"
             )
 
-        # The board sends exactly one byte per image. Extra bytes mean it ran
+        # The board sends exactly one reply per image. Extra bytes mean it ran
         # more than once -- most likely BTNC was pressed, or a previous run
         # left the loader part way through an image and this transfer completed
         # it, triggering an inference on a spliced image.
         extra = ser.read_all()
 
-    return reply[0], extra
+    score = int.from_bytes(reply[1:5], "little", signed=True)
+    return reply[0], score, extra
 
 
 def main():
@@ -187,6 +196,7 @@ def main():
     packed = read_hex_lines(os.path.join(MEM_DIR, "images_packed.mem"))
     golden = read_hex_lines(os.path.join(MEM_DIR, "preds.mem"))
     labels = read_hex_lines(os.path.join(MEM_DIR, "labels.mem"))
+    scores = read_hex_lines(os.path.join(MEM_DIR, "scores.mem"))
 
     image = unpack_image(packed, args.index)
 
@@ -198,17 +208,19 @@ def main():
     print(f"image {args.index}: sending {len(image)} bytes to {port} "
           f"at {BAUD} baud ({len(image) * 10 / BAUD * 1000:.0f} ms)")
 
-    pred, extra = classify(port, image, args.timeout)
+    pred, score, extra = classify(port, image, args.timeout)
 
     want = golden[args.index]
     truth = labels[args.index]
+    want_score = scores[args.index] - (1 << 32) if scores[args.index] >> 31 \
+        else scores[args.index]
 
     def letter(i):
         return IDX_TO_LETTER[i] if 0 <= i < len(IDX_TO_LETTER) else "?"
 
     print("")
-    print(f"  hardware      {pred:2d}  {letter(pred)}")
-    print(f"  golden model  {want:2d}  {letter(want)}")
+    print(f"  hardware      {pred:2d}  {letter(pred)}   logit {score:>8,}")
+    print(f"  golden model  {want:2d}  {letter(want)}   logit {want_score:>8,}")
     print(f"  true label    {truth:2d}  {letter(truth)}")
     print("")
 
@@ -218,6 +230,13 @@ def main():
 
     if pred != want:
         print("MISMATCH -- hardware disagrees with the golden model")
+        sys.exit(1)
+
+    # Same class but a different logit means the arithmetic drifted and the
+    # argmax happened to survive it. That is the failure the class check misses.
+    if score != want_score:
+        print(f"MISMATCH -- class agrees but the logit does not "
+              f"({score} vs {want_score})")
         sys.exit(1)
 
     print("match: hardware agrees with the golden model", end="")

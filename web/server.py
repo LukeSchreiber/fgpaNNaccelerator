@@ -144,7 +144,7 @@ class Board:
                 return False
 
     def classify(self, image_bytes):
-        """Send 784 pixel bytes, return (class_index, round_trip_ms).
+        """Send 784 pixel bytes, return (class_index, logit, round_trip_ms).
 
         Raises BoardUnavailable if the link is down, TimeoutError if the board
         is connected but silent.
@@ -166,7 +166,7 @@ class Board:
                 t0 = time.perf_counter()
                 self._ser.write(image_bytes)
                 self._ser.flush()
-                reply = self._ser.read(1)
+                reply = self._ser.read(predict.REPLY_BYTES)
                 elapsed_ms = (time.perf_counter() - t0) * 1000.0
             except LINK_ERRORS as e:
                 self._drop()
@@ -174,14 +174,15 @@ class Board:
                     f"lost the link to {self.resolved} mid-transfer ({e}). "
                     f"Reconnect the board; the next request will reopen it.")
 
-        if not reply:
+        if len(reply) < predict.REPLY_BYTES:
             raise TimeoutError(
                 f"no reply from {self.resolved} within {self.timeout}s -- is the "
                 f"board programmed with nn_accel_top? A truncated stream is "
                 f"discarded by the loader's watchdog after 50 ms, so simply "
                 f"retrying is safe.")
 
-        return reply[0], elapsed_ms
+        score = int.from_bytes(reply[1:5], "little", signed=True)
+        return reply[0], score, elapsed_ms
 
 
 board = Board(PORT, BAUD, TIMEOUT)
@@ -223,11 +224,18 @@ SHIFT1 = int(_params["shift1"])
 
 
 def golden(pixels):
-    """Reference prediction for these exact bytes -> (class index, logit)."""
+    """Reference prediction for these exact bytes.
+
+    Returns (class, logit, runner-up class, runner-up logit). The runner-up is
+    what turns a wrong answer into a legible one: image 5 comes back as W with
+    a logit 2.8% above V, which is a near-tie between the two signs that differ
+    by one finger -- not the same story as a confident mistake.
+    """
     px = np.frombuffer(pixels, dtype=np.uint8).astype(np.int64).reshape(1, -1)
     _, _, acc2 = golden_check.forward_int(px, QW1, QB1, SHIFT1, QW2, QB2)
-    idx = int(acc2[0].argmax())
-    return idx, int(acc2[0, idx])
+    order = acc2[0].argsort()[::-1]
+    a, b = int(order[0]), int(order[1])
+    return a, int(acc2[0, a]), b, int(acc2[0, b])
 
 
 class BadImage(Exception):
@@ -328,6 +336,17 @@ def image_pixels(index):
         return jsonify({"error": f"index out of range 0..{N_IMAGES-1}"}), 404
 
     return jsonify({
+        "golden_class": g_idx,
+        "golden_letter": letter(g_idx),
+        "golden_score": g_score,
+        "hardware_score": hw_score,
+        "runner_up_letter": letter(g2_idx),
+        "runner_up_score": g2_score,
+        "margin_pct": round((g_score - g2_score) / abs(g_score) * 100, 1)
+                      if g_score else 0.0,
+        # Bit-exact, not just the same argmax: a drifted dot product that
+        # happens to keep the same winner is exactly what the class check misses.
+        "matches_model": pred == g_idx and hw_score == g_score,
         "index": index,
         "pixels": list(predict.unpack_image(packed, index)),
         "ground_truth": labels[index],
@@ -346,14 +365,14 @@ def predict_test():
     image = predict.unpack_image(packed, index)
 
     try:
-        pred, latency_ms = board.classify(image)
+        pred, hw_score, latency_ms = board.classify(image)
     except BoardUnavailable as e:
         return jsonify({"error": str(e)}), 503
     except TimeoutError as e:
         return jsonify({"error": str(e)}), 504
 
     truth = labels[index]
-    g_idx, g_score = golden(image)
+    g_idx, g_score, g2_idx, g2_score = golden(image)
 
     return jsonify({
         "index": index,
@@ -383,20 +402,27 @@ def predict_upload():
 
     # The same locked singleton the test path uses -- one port, one lock.
     try:
-        pred, latency_ms = board.classify(pixels)
+        pred, hw_score, latency_ms = board.classify(pixels)
     except BoardUnavailable as e:
         return jsonify({"error": str(e)}), 503
     except TimeoutError as e:
         return jsonify({"error": str(e)}), 504
 
-    g_idx, g_score = golden(pixels)
+    g_idx, g_score, g2_idx, g2_score = golden(pixels)
 
     return jsonify({
         "filename": upload.filename,
         "golden_class": g_idx,
         "golden_letter": letter(g_idx),
         "golden_score": g_score,
-        "matches_model": pred == g_idx,
+        "hardware_score": hw_score,
+        "runner_up_letter": letter(g2_idx),
+        "runner_up_score": g2_score,
+        "margin_pct": round((g_score - g2_score) / abs(g_score) * 100, 1)
+                      if g_score else 0.0,
+        # Bit-exact, not just the same argmax: a drifted dot product that
+        # happens to keep the same winner is exactly what the class check misses.
+        "matches_model": pred == g_idx and hw_score == g_score,
         "predicted_class": pred,
         "predicted_letter": letter(pred),
         "latency_ms": round(latency_ms, 1),
