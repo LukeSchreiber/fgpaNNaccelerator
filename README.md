@@ -98,11 +98,11 @@ working directory. Building elsewhere? `make test MEM_DIR=/abs/path/to/mem`.
 Program `bit/nn_accel_top.bit` onto a Basys 3, then:
 
 ```bash
-python python/predict.py 0 --port /dev/ttyUSB1
+python python/predict.py 0        # port is auto-detected
 ```
 
 ```
-image 0: sending 784 bytes to /dev/ttyUSB1 at 921600 baud (9 ms)
+image 0: sending 784 bytes to /dev/ttyUSB2 at 921600 baud (9 ms)
 
   hardware       6  G
   golden model   6  G
@@ -170,3 +170,9 @@ bit/     implemented bitstream
 
 Pin constraints are in `rtl/basys3.xdc`. UART is 921600 8N1 on RsRx (B18) /
 RsTx (A18).
+
+The serial device is found from its USB descriptors (FTDI VID 0x0403 /
+Digilent), not by a hardcoded path — the board lands on a different
+`/dev/ttyUSB*` depending on what else is plugged in. On an FT2232H the
+higher interface number is the UART; interface 0 is JTAG. Override with
+`--port`, or `FPGA_PORT` for the web server.

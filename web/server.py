@@ -42,7 +42,8 @@ sys.path.insert(0, os.path.join(ROOT, "python"))
 import golden_check  # noqa: E402  (needs the path set above)
 import predict       # noqa: E402
 
-PORT = os.environ.get("FPGA_PORT", predict.DEFAULT_PORT)
+# None means auto-detect. FPGA_PORT pins it to a specific device.
+PORT = os.environ.get("FPGA_PORT")
 BAUD = predict.BAUD
 TIMEOUT = 5.0
 
@@ -91,18 +92,32 @@ class Board:
     def __init__(self, port, baud, timeout):
         self._lock = threading.Lock()
         self._ser = None
-        self.port = port
+        self.port = port          # None = auto-detect on every open
+        self.resolved = port      # what the last open actually used
         self.baud = baud
         self.timeout = timeout
 
     def _open(self):
-        """Caller must hold the lock. Raises BoardUnavailable."""
+        """Caller must hold the lock. Raises BoardUnavailable.
+
+        The port is resolved HERE rather than once at startup: unplugging the
+        board and plugging it back in can hand it a different /dev/ttyUSB*
+        number, and re-detecting on each open means that heals itself along
+        with the reconnect.
+        """
         try:
-            self._ser = serial.Serial(self.port, self.baud, timeout=self.timeout)
+            self.resolved = predict.find_port(self.port)
+        except predict.PortNotFound as e:
+            self._ser = None
+            raise BoardUnavailable(str(e))
+
+        try:
+            self._ser = serial.Serial(self.resolved, self.baud,
+                                      timeout=self.timeout)
         except LINK_ERRORS as e:
             self._ser = None
             raise BoardUnavailable(
-                f"cannot open {self.port}: {e}. Is the board plugged in and "
+                f"cannot open {self.resolved}: {e}. Is the board plugged in and "
                 f"powered, and is this the UART rather than the JTAG interface?")
 
     def _drop(self):
@@ -156,12 +171,12 @@ class Board:
             except LINK_ERRORS as e:
                 self._drop()
                 raise BoardUnavailable(
-                    f"lost the link to {self.port} mid-transfer ({e}). "
+                    f"lost the link to {self.resolved} mid-transfer ({e}). "
                     f"Reconnect the board; the next request will reopen it.")
 
         if not reply:
             raise TimeoutError(
-                f"no reply from {self.port} within {self.timeout}s -- is the "
+                f"no reply from {self.resolved} within {self.timeout}s -- is the "
                 f"board programmed with nn_accel_top? A partial image may be "
                 f"buffered; press BTNU to reset the loader.")
 
@@ -296,7 +311,7 @@ def info():
     """What the frontend needs to build itself: image count, port, letters."""
     return jsonify({
         "n_images": N_IMAGES,
-        "port": board.port,
+        "port": board.resolved or "auto-detect",
         "connected": board.connected,
         "fpga_cycles": FPGA_CYCLES,
         "fpga_ms": round(FPGA_MS, 4),
@@ -395,10 +410,11 @@ def too_large(_e):
 
 if __name__ == "__main__":
     if board.connect():
-        print(f"serial: {board.port} at {BAUD} baud")
+        print(f"serial: {board.resolved} at {BAUD} baud (auto-detected)"
+              if PORT is None else f"serial: {board.resolved} at {BAUD} baud")
     else:
-        print(f"serial: {board.port} NOT PRESENT -- the UI will load and "
-              f"reconnect by itself once the board is plugged in")
+        print(f"serial: no board found -- the UI will load and reconnect by "
+              f"itself once one is plugged in")
     print(f"images: {N_IMAGES} from mem/images_packed.mem")
     print("open http://localhost:5000")
     # threaded=False: one request at a time, so nothing can share the port.

@@ -3,6 +3,8 @@ Stage 4: send one demo image to the board over the UART and read the class back.
 
     ./venv/bin/python python/predict.py [index] [--port /dev/ttyUSB1]
 
+The port is auto-detected from the USB descriptors; --port overrides.
+
 The board runs continuously: 784 bytes in on RsRx starts an inference, one byte
 comes back on RsTx with the predicted class index. No header, no framing, no
 command bytes -- the byte count IS the protocol.
@@ -32,9 +34,11 @@ both are printed and only the preds.mem comparison sets the exit status.
 
 import argparse
 import os
+import re
 import sys
 
 import serial
+from serial.tools import list_ports
 
 N = 16
 INPUTS = 784
@@ -49,7 +53,68 @@ MEM_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "mem")
 RAW_LABELS = [i for i in range(26) if i not in (9, 25)]
 IDX_TO_LETTER = [chr(ord("A") + raw) for raw in RAW_LABELS]
 
-DEFAULT_PORT = "/dev/ttyUSB1"   # Digilent boards enumerate JTAG first, UART second
+# Digilent boards carry an FTDI FT2232H with two channels on one USB device:
+# interface 0 is JTAG, interface 1 is the UART this design talks to. Which
+# /dev/ttyUSB* number they land on depends on what else is plugged in and in
+# what order, and it changes whenever the board is re-plugged -- so the device
+# is found by what it IS, not by where it happened to appear last time.
+FTDI_VID = 0x0403
+
+
+class PortNotFound(Exception):
+    """No Digilent/FTDI serial device present."""
+
+
+def _interface_index(port):
+    """Which USB interface this port is, so JTAG can be told from UART.
+
+    Linux reports location like '1-1:1.1' -- the digits after the final dot are
+    the interface number. Falls back to the trailing digits of the device name,
+    which preserves ttyUSB0 < ttyUSB1 ordering when location is unavailable.
+    """
+    m = re.search(r"\.(\d+)$", port.location or "")
+    if m:
+        return int(m.group(1))
+    m = re.search(r"(\d+)$", port.device or "")
+    return int(m.group(1)) if m else 0
+
+
+def find_port(explicit=None):
+    """Locate the board's UART. An explicit port always wins.
+
+    Only one channel is usually exposed as a serial device -- on Linux the JTAG
+    channel is normally claimed by Digilent's driver -- but when both appear,
+    the higher interface number is the UART. Picking the first would open the
+    JTAG channel, which accepts the bytes and answers nothing.
+    """
+    if explicit:
+        return explicit
+
+    cands = [p for p in list_ports.comports()
+             if p.vid == FTDI_VID
+             or "digilent" in ((p.manufacturer or "") + (p.description or "")).lower()]
+
+    if not cands:
+        raise PortNotFound(
+            "no Digilent/FTDI serial device found. Is the board plugged in and "
+            "powered? Pass --port to override.")
+
+    # More than one board attached: group by USB serial number so the two
+    # channels of ONE device are never confused with two devices.
+    by_device = {}
+    for p in cands:
+        by_device.setdefault(p.serial_number or p.device, []).append(p)
+
+    key = sorted(by_device)[0]
+    chosen = sorted(by_device[key], key=_interface_index)[-1]
+
+    if len(by_device) > 1:
+        others = ", ".join(sorted(by_device)[1:])
+        print(f"note: {len(by_device)} FTDI devices attached; using "
+              f"{chosen.device} (serial {key}). Others: {others}. "
+              f"Pass --port to choose.", file=sys.stderr)
+
+    return chosen.device
 BAUD = 921600   # matches BAUD_DIV=109 in nn_accel_top.v
 
 
@@ -111,8 +176,8 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__.strip().splitlines()[0])
     ap.add_argument("index", nargs="?", type=int, default=0,
                     help="which demo image to send (default 0)")
-    ap.add_argument("--port", default=DEFAULT_PORT,
-                    help=f"serial device (default {DEFAULT_PORT})")
+    ap.add_argument("--port", default=None,
+                    help="serial device (default: auto-detect the Digilent board)")
     # 784 bytes at 921600 8N1 is 8.5 ms and the inference is 65 us, so anything
     # past a second means the board is not answering at all.
     ap.add_argument("--timeout", type=float, default=5.0,
@@ -125,10 +190,15 @@ def main():
 
     image = unpack_image(packed, args.index)
 
-    print(f"image {args.index}: sending {len(image)} bytes to {args.port} "
+    try:
+        port = find_port(args.port)
+    except PortNotFound as e:
+        sys.exit(str(e))
+
+    print(f"image {args.index}: sending {len(image)} bytes to {port} "
           f"at {BAUD} baud ({len(image) * 10 / BAUD * 1000:.0f} ms)")
 
-    pred, extra = classify(args.port, image, args.timeout)
+    pred, extra = classify(port, image, args.timeout)
 
     want = golden[args.index]
     truth = labels[args.index]
