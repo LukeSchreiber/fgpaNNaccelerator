@@ -335,18 +335,13 @@ def image_pixels(index):
     if not 0 <= index < N_IMAGES:
         return jsonify({"error": f"index out of range 0..{N_IMAGES-1}"}), 404
 
+    # Data only. No golden-model comparison here: hardware_score would need a
+    # board round-trip, and the browser calls this once per thumbnail, so the
+    # tray would cost 16 serial transfers on page load and fail outright with
+    # the board unplugged -- a state this page is deliberately built to survive.
+    # The comparison belongs in the predict routes, which have a result to
+    # compare.
     return jsonify({
-        "golden_class": g_idx,
-        "golden_letter": letter(g_idx),
-        "golden_score": g_score,
-        "hardware_score": hw_score,
-        "runner_up_letter": letter(g2_idx),
-        "runner_up_score": g2_score,
-        "margin_pct": round((g_score - g2_score) / abs(g_score) * 100, 1)
-                      if g_score else 0.0,
-        # Bit-exact, not just the same argmax: a drifted dot product that
-        # happens to keep the same winner is exactly what the class check misses.
-        "matches_model": pred == g_idx and hw_score == g_score,
         "index": index,
         "pixels": list(predict.unpack_image(packed, index)),
         "ground_truth": labels[index],
