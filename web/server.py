@@ -379,7 +379,14 @@ def predict_test():
         "golden_class": g_idx,
         "golden_letter": letter(g_idx),
         "golden_score": g_score,
-        "matches_model": pred == g_idx,
+        "hardware_score": hw_score,
+        "runner_up_letter": letter(g2_idx),
+        "runner_up_score": g2_score,
+        "margin_pct": round((g_score - g2_score) / abs(g_score) * 100, 1)
+                      if g_score else 0.0,
+        # Bit-exact, not just the same argmax: a drifted dot product that
+        # happens to keep the same winner is exactly what a class check misses.
+        "matches_model": pred == g_idx and hw_score == g_score,
         "predicted_class": pred,
         "predicted_letter": letter(pred),
         "ground_truth": truth,

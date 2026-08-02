@@ -1,146 +1,149 @@
 Hardware verification -- FPGA vs integer golden model
 =====================================================
 
-Generated: 2026-08-02T14:06:09-04:00
-Commit:    a6c8940
+Generated: 2026-08-02T15:00:56-04:00
+Commit:    32275fb
 Bitstream: bit/nn_accel_top.bit  (2192215 bytes,
-           md5 8227e9406330ff5cfc1b629c694385a1)
+           md5 3281728c4bd709810b59f090cdb91e5d)
 Board:     Basys 3 / Artix-7 XC7A35T, 921600 8N1, port auto-detected
-Includes:  UART framing check (LD13 sticky), img_loader 50 ms watchdog
+Build:     5-byte reply (class + int32 logit), UART framing check on LD13,
+           img_loader 50 ms idle watchdog
 
-Each image is sent as 784 raw pixel bytes over UART; the board returns
-one byte with the predicted class. 'golden model' is the integer
-reference in python/, the same one tb_core.v checks the RTL against.
-The hardware must match the GOLDEN column exactly -- the true label is
-shown for context, and the quantized model is ~92% accurate, so it can
-legitimately disagree with the truth while the hardware is correct.
+Each image is sent as 784 raw pixel bytes; the board returns the class
+and its winning logit. Both are compared against the integer reference
+in python/, the same model tb_core.v checks the RTL against -- so a run
+passes only if the ARITHMETIC matches, not merely the argmax.
+
+The true label is shown for context. The quantized model is 92.40%
+accurate, so it can legitimately disagree with the truth (image 5) while
+the hardware remains bit-exact.
 
 -----------------------------------------------------------------
 
-image 0: sending 784 bytes to /dev/ttyUSB2 at 921600 baud (9 ms)
+image 0: sending 784 bytes to /dev/ttyUSB1 at 921600 baud (9 ms)
 
-  hardware       6  G
-  golden model   6  G
+  hardware       6  G   logit   11,656
+  golden model   6  G   logit   11,656
   true label     6  G
 
 match: hardware agrees with the golden model
 
-image 1: sending 784 bytes to /dev/ttyUSB2 at 921600 baud (9 ms)
+image 1: sending 784 bytes to /dev/ttyUSB1 at 921600 baud (9 ms)
 
-  hardware       5  F
-  golden model   5  F
+  hardware       5  F   logit    6,344
+  golden model   5  F   logit    6,344
   true label     5  F
 
 match: hardware agrees with the golden model
 
-image 2: sending 784 bytes to /dev/ttyUSB2 at 921600 baud (9 ms)
+image 2: sending 784 bytes to /dev/ttyUSB1 at 921600 baud (9 ms)
 
-  hardware       9  K
-  golden model   9  K
+  hardware       9  K   logit   16,374
+  golden model   9  K   logit   16,374
   true label     9  K
 
 match: hardware agrees with the golden model
 
-image 3: sending 784 bytes to /dev/ttyUSB2 at 921600 baud (9 ms)
+image 3: sending 784 bytes to /dev/ttyUSB1 at 921600 baud (9 ms)
 
-  hardware       0  A
-  golden model   0  A
+  hardware       0  A   logit   10,072
+  golden model   0  A   logit   10,072
   true label     0  A
 
 match: hardware agrees with the golden model
 
-image 4: sending 784 bytes to /dev/ttyUSB2 at 921600 baud (9 ms)
+image 4: sending 784 bytes to /dev/ttyUSB1 at 921600 baud (9 ms)
 
-  hardware       3  D
-  golden model   3  D
+  hardware       3  D   logit    5,441
+  golden model   3  D   logit    5,441
   true label     3  D
 
 match: hardware agrees with the golden model
 
-image 5: sending 784 bytes to /dev/ttyUSB2 at 921600 baud (9 ms)
+image 5: sending 784 bytes to /dev/ttyUSB1 at 921600 baud (9 ms)
 
-  hardware      21  W
-  golden model  21  W
+  hardware      21  W   logit    8,949
+  golden model  21  W   logit    8,949
   true label    20  V
 
 match: hardware agrees with the golden model  (both differ from the true label)
 
-image 6: sending 784 bytes to /dev/ttyUSB2 at 921600 baud (9 ms)
+image 6: sending 784 bytes to /dev/ttyUSB1 at 921600 baud (9 ms)
 
-  hardware       9  K
-  golden model   9  K
+  hardware       9  K   logit    7,544
+  golden model   9  K   logit    7,544
   true label     9  K
 
 match: hardware agrees with the golden model
 
-image 7: sending 784 bytes to /dev/ttyUSB2 at 921600 baud (9 ms)
+image 7: sending 784 bytes to /dev/ttyUSB1 at 921600 baud (9 ms)
 
-  hardware      13  O
-  golden model  13  O
+  hardware      13  O   logit   19,218
+  golden model  13  O   logit   19,218
   true label    13  O
 
 match: hardware agrees with the golden model
 
-image 8: sending 784 bytes to /dev/ttyUSB2 at 921600 baud (9 ms)
+image 8: sending 784 bytes to /dev/ttyUSB1 at 921600 baud (9 ms)
 
-  hardware       3  D
-  golden model   3  D
+  hardware       3  D   logit    4,747
+  golden model   3  D   logit    4,747
   true label     3  D
 
 match: hardware agrees with the golden model
 
-image 9: sending 784 bytes to /dev/ttyUSB2 at 921600 baud (9 ms)
+image 9: sending 784 bytes to /dev/ttyUSB1 at 921600 baud (9 ms)
 
-  hardware       7  H
-  golden model   7  H
+  hardware       7  H   logit   13,389
+  golden model   7  H   logit   13,389
   true label     7  H
 
 match: hardware agrees with the golden model
 
-image 10: sending 784 bytes to /dev/ttyUSB2 at 921600 baud (9 ms)
+image 10: sending 784 bytes to /dev/ttyUSB1 at 921600 baud (9 ms)
 
-  hardware       8  I
-  golden model   8  I
+  hardware       8  I   logit   10,138
+  golden model   8  I   logit   10,138
   true label     8  I
 
 match: hardware agrees with the golden model
 
-image 11: sending 784 bytes to /dev/ttyUSB2 at 921600 baud (9 ms)
+image 11: sending 784 bytes to /dev/ttyUSB1 at 921600 baud (9 ms)
 
-  hardware       8  I
-  golden model   8  I
+  hardware       8  I   logit    9,266
+  golden model   8  I   logit    9,266
   true label     8  I
 
 match: hardware agrees with the golden model
 
-image 12: sending 784 bytes to /dev/ttyUSB2 at 921600 baud (9 ms)
+image 12: sending 784 bytes to /dev/ttyUSB1 at 921600 baud (9 ms)
 
-  hardware      20  V
-  golden model  20  V
+  hardware      20  V   logit    9,928
+  golden model  20  V   logit    9,928
   true label    20  V
 
 match: hardware agrees with the golden model
 
-image 13: sending 784 bytes to /dev/ttyUSB2 at 921600 baud (9 ms)
+image 13: sending 784 bytes to /dev/ttyUSB1 at 921600 baud (9 ms)
 
-  hardware      11  M
-  golden model  11  M
+  hardware      11  M   logit   13,168
+  golden model  11  M   logit   13,168
   true label    11  M
 
 match: hardware agrees with the golden model
 
-image 14: sending 784 bytes to /dev/ttyUSB2 at 921600 baud (9 ms)
+image 14: sending 784 bytes to /dev/ttyUSB1 at 921600 baud (9 ms)
 
-  hardware       7  H
-  golden model   7  H
+  hardware       7  H   logit    7,913
+  golden model   7  H   logit    7,913
   true label     7  H
 
 match: hardware agrees with the golden model
 
-image 15: sending 784 bytes to /dev/ttyUSB2 at 921600 baud (9 ms)
+image 15: sending 784 bytes to /dev/ttyUSB1 at 921600 baud (9 ms)
 
-  hardware       4  E
-  golden model   4  E
+  hardware       4  E   logit    8,476
+  golden model   4  E   logit    8,476
   true label     4  E
 
 match: hardware agrees with the golden model

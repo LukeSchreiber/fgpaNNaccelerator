@@ -8,4 +8,4 @@ Start Address      0x00000000
 End Address        0x003FFFFF
 
 Addr1         Addr2         Date                    File(s)
-0x00000000    0x0021728B    Aug  2 14:03:02 2026    /home/yetigod/fpga-nn-accel/nn_accel/nn_accel.runs/impl_1/nn_accel_top.bit
+0x00000000    0x0021728B    Aug  2 14:30:00 2026    /home/yetigod/fpga-nn-accel/nn_accel/nn_accel.runs/impl_1/nn_accel_top.bit
