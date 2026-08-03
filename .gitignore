@@ -39,5 +39,8 @@ build/
 # editor/tool temp files
 *.tmp.*
 
-# Claude Code per-machine settings (settings.json stays shared)
+# Claude Code per-machine settings. Both are ignored: the tool rewrites
+# settings.json on its own as permissions are granted, so tracking it produced
+# a churning file of machine-specific noise rather than anything shareable.
 .claude/settings.local.json
+.claude/settings.json
