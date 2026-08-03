@@ -6,6 +6,12 @@ classifies American Sign Language letters from images streamed over UART.
 Send 784 pixel bytes to the board; **64.8 µs** later it returns the predicted
 class and the winning logit, and shows the letter on the seven-segment display.
 
+![Browser UI classifying a test image and an uploaded photo on the Basys 3, with the predicted letter on the seven-segment display](docs/demo.gif)
+
+Test images and a dropped-in photo, each classified on the board and checked
+against the golden model live — the letter on the seven-segment display is the
+same inference.
+
 ```
 host ──784 bytes──> uart_rx ─> img_loader ─> nn_accel_core ─> argmax ─> uart_tx ─5 bytes─> host
                                                   │
@@ -174,7 +180,7 @@ web/        Flask server (serial singleton behind a lock, live golden check)
 frontend/   browser UI, no framework
 mem/        packed weights, demo images, golden predictions and logits
 bit/        implemented bitstream (+ .mcs/.prm for SPI flash boot)
-docs/       system overview, hardware verification log, sample image
+docs/       system overview, hardware verification log, demo clip, sample image
 archive/    superseded training scripts
 ```
 
