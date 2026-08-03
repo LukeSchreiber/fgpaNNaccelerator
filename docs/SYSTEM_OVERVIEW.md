@@ -297,6 +297,11 @@ web/        Flask server: serial singleton behind a lock, live golden check
 frontend/   browser UI, no framework
 mem/        packed weights, demo images, golden predictions and logits
 bit/        implemented bitstream (+ .mcs/.prm for SPI flash boot)
-docs/       this file, hardware verification log, sample image
+docs/       this file, hardware verification log, demo clip, sample image
 archive/    superseded training scripts, with a README saying what replaced them
 ```
+
+Flash boot needs `JP1` on **QSPI** rather than JTAG; the `.mcs`/`.prm` alone will
+not do it, and on JTAG the board comes up unconfigured — a jumper symptom that
+reads as a bad image. Not verified here: every measurement in this document was
+taken with `bit/nn_accel_top.bit` loaded over JTAG.

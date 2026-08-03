@@ -187,6 +187,13 @@ archive/    superseded training scripts
 Pin constraints are in `rtl/basys3.xdc`. UART is 921600 8N1 on RsRx (B18) /
 RsTx (A18).
 
+Booting from flash needs `JP1` moved from JTAG to **QSPI** — the `.mcs`/`.prm`
+alone will not do it, and with the jumper left on JTAG the board simply comes up
+unconfigured, which looks like a bad image rather than a jumper. Flagged because
+it is the easy thing to miss: flash boot is **not verified here**. The tested
+path is programming `bit/nn_accel_top.bit` over JTAG, which is what every number
+in this README was measured on.
+
 The serial device is found from its USB descriptors (FTDI VID 0x0403 /
 Digilent), not a hardcoded path — the board lands on a different `/dev/ttyUSB*`
 depending on what else is plugged in. On an FT2232H the higher interface number
