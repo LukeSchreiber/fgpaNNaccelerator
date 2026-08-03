@@ -51,6 +51,17 @@ require motion and have no static frame.
 Quantization folds the `/255` rescale and input normalization into layer 1, so
 the hardware consumes raw pixel bytes and never sees a floating-point number.
 
+<img src="docs/sample_a.png" width="112" alt="28x28 grayscale ASL letter A"
+     align="left" hspace="12" vspace="4">
+
+This is the whole input: [`docs/sample_a.png`](docs/sample_a.png), the letter A
+at 28×28 grayscale, shown at 4×. Its 784 bytes go over the wire as raw 0–255
+values — no `/255` rescale and no mean subtraction, because layer 1 absorbs
+both. An uploaded photo is centre-cropped and resampled to reach this form, but
+what leaves the host is always these bytes, unscaled.
+
+<br clear="left">
+
 **16 MAC lanes**, one DSP48E1 each, fed from 128-bit BRAM words so a single read
 feeds every lane. The adder reduction is split across two pipeline stages: as a
 single 16-input adder it was 17 logic levels and the longest path in the design.
